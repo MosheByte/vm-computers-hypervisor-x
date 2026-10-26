@@ -217,9 +217,9 @@ printf '\033]1337;GPIO;PULSE;front;15;20\a'   # one-second pulse in front
 python tools/gen_assets.py && python tools/gen_lang.py   # regenerate textures, models, languages
 ```
 Requires JDK 21. CI builds both loaders, runs the unit tests and boots Linux on the embedded core
-on every push; tags `v*` publish a GitHub release, and publishing a release uploads to Modrinth and
+on every push; a `v*` tag publishes a GitHub release and then uploads both jars to Modrinth and
 CurseForge when `MODRINTH_TOKEN` / `CURSEFORGE_TOKEN` secrets and `MODRINTH_ID` / `CURSEFORGE_ID`
-variables are set.
+variables are set (or run *Publish to Modrinth & CurseForge* by hand from the Actions tab).
 
 ## Architecture
 ```

@@ -52,7 +52,9 @@ cd vm-computers-hypervisor-x
 4. העלה את התמונות מ-`docs/screenshots` לגלריה (התמונה הראשית: `hvx-world.png`).
 5. לאוטומציה: ב-GitHub → Settings → Secrets and variables → Actions הוסף
    `MODRINTH_TOKEN`, `CURSEFORGE_TOKEN` (secrets) ו-`MODRINTH_ID`, `CURSEFORGE_ID` (variables).
-   מעכשיו כל Release שמתפרסם ב-GitHub עולה אוטומטית לשתי החנויות.
+   מעכשיו כל תגית `v*` (למשל `git tag v1.0.1 && git push origin v1.0.1`) בונה, יוצרת Release ב-GitHub
+   ומעלה אוטומטית לשתי החנויות. לגרסה שכבר קיימת: Actions → *Publish to Modrinth & CurseForge* →
+   *Run workflow* → בחר את התגית ב-"Use workflow from" והקלד אותה (למשל `v1.0.0`).
 
 ### שם וכותרת
 - **Name:** VM Computers: HyperVisor X

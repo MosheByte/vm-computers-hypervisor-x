@@ -57,3 +57,12 @@ jobs:
           files: dist/*.jar
           generate_release_notes: true
           body_path: CHANGELOG.md
+
+  # releases made with GITHUB_TOKEN don't trigger other workflows, so publish is chained here
+  publish:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    uses: ./.github/workflows/publish_mod.yml
+    with:
+      version: ${{ github.ref_name }}
+    secrets: inherit
