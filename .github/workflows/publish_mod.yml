@@ -1,13 +1,26 @@
 name: Publish to Modrinth & CurseForge
 
-# Runs when a GitHub release is published (or manually). Configure once in
-# Settings -> Secrets and variables -> Actions:
+# Called by "Build & Release" after a v* tag build, or run by hand from the Actions tab
+# (pick the tag in "Use workflow from"). A platform is skipped when its token is missing.
+# Configure once in Settings -> Secrets and variables -> Actions:
 #   secrets: MODRINTH_TOKEN, CURSEFORGE_TOKEN
 #   variables: MODRINTH_ID (project id/slug), CURSEFORGE_ID (numeric project id)
 on:
-  release:
-    types: [ published ]
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: true
+    secrets:
+      MODRINTH_TOKEN:
+        required: false
+      CURSEFORGE_TOKEN:
+        required: false
   workflow_dispatch:
+    inputs:
+      version:
+        description: Version tag to publish (e.g. v1.0.0)
+        required: true
 
 jobs:
   publish:
@@ -15,6 +28,8 @@ jobs:
     if: ${{ vars.MODRINTH_ID != '' || vars.CURSEFORGE_ID != '' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version }}
 
       - uses: actions/setup-java@v4
         with:
@@ -36,8 +51,8 @@ jobs:
           curseforge-id: ${{ vars.CURSEFORGE_ID }}
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
           files: neoforge/build/libs/!(*-@(sources|dev)).jar
-          name: HyperVisor X ${{ github.ref_name }} (NeoForge 1.21.1)
-          version: ${{ github.ref_name }}+neoforge
+          name: HyperVisor X ${{ inputs.version }} (NeoForge 1.21.1)
+          version: ${{ inputs.version }}+neoforge
           version-type: release
           changelog-file: CHANGELOG.md
           loaders: neoforge
@@ -52,8 +67,8 @@ jobs:
           curseforge-id: ${{ vars.CURSEFORGE_ID }}
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
           files: fabric/build/libs/!(*-@(sources|dev)).jar
-          name: HyperVisor X ${{ github.ref_name }} (Fabric 1.21.1)
-          version: ${{ github.ref_name }}+fabric
+          name: HyperVisor X ${{ inputs.version }} (Fabric 1.21.1)
+          version: ${{ inputs.version }}+fabric
           version-type: release
           changelog-file: CHANGELOG.md
           loaders: fabric
