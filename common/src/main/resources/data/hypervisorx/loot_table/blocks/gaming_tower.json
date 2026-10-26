@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:block",
+  "pools": [
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "hypervisorx:gaming_tower",
+          "functions": [
+            {
+              "function": "minecraft:copy_components",
+              "source": "block_entity",
+              "include": [
+                "hypervisorx:installed_parts",
+                "hypervisorx:vm_link"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "random_sequence": "hypervisorx:blocks/gaming_tower"
+}

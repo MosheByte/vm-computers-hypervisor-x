@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "hypervisorx:item/enterprise_hdd_8tb"
+  }
+}

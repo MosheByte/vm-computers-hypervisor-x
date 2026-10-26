@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "hypervisorx:block/video_wall_panel"
+    },
+    "facing=east": {
+      "model": "hypervisorx:block/video_wall_panel",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "hypervisorx:block/video_wall_panel",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "hypervisorx:block/video_wall_panel",
+      "y": 270
+    }
+  }
+}

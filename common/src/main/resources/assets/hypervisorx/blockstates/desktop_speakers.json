@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "hypervisorx:block/desktop_speakers"
+    },
+    "facing=east": {
+      "model": "hypervisorx:block/desktop_speakers",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "hypervisorx:block/desktop_speakers",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "hypervisorx:block/desktop_speakers",
+      "y": 270
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "hypervisorx:block/gaming_mouse"
+    },
+    "facing=east": {
+      "model": "hypervisorx:block/gaming_mouse",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "hypervisorx:block/gaming_mouse",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "hypervisorx:block/gaming_mouse",
+      "y": 270
+    }
+  }
+}

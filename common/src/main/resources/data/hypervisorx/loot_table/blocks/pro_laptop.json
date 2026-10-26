@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:block",
+  "pools": [
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "hypervisorx:pro_laptop",
+          "functions": [
+            {
+              "function": "minecraft:copy_components",
+              "source": "block_entity",
+              "include": [
+                "hypervisorx:vm_link",
+                "hypervisorx:remote_target"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "random_sequence": "hypervisorx:blocks/pro_laptop"
+}

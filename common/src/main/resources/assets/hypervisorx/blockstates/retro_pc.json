@@ -1,0 +1,34 @@
+{
+  "variants": {
+    "facing=north,powered=false": {
+      "model": "hypervisorx:block/retro_pc"
+    },
+    "facing=north,powered=true": {
+      "model": "hypervisorx:block/retro_pc_on"
+    },
+    "facing=east,powered=false": {
+      "model": "hypervisorx:block/retro_pc",
+      "y": 90
+    },
+    "facing=east,powered=true": {
+      "model": "hypervisorx:block/retro_pc_on",
+      "y": 90
+    },
+    "facing=south,powered=false": {
+      "model": "hypervisorx:block/retro_pc",
+      "y": 180
+    },
+    "facing=south,powered=true": {
+      "model": "hypervisorx:block/retro_pc_on",
+      "y": 180
+    },
+    "facing=west,powered=false": {
+      "model": "hypervisorx:block/retro_pc",
+      "y": 270
+    },
+    "facing=west,powered=true": {
+      "model": "hypervisorx:block/retro_pc_on",
+      "y": 270
+    }
+  }
+}

@@ -1,0 +1,36 @@
+plugins {
+    id 'multiloader-loader'
+    id 'net.neoforged.moddev'
+}
+
+description = project.property('description')
+
+neoForge {
+    version = neoforge_version
+    parchment {
+        minecraftVersion = parchment_minecraft
+        mappingsVersion = parchment_version
+    }
+    runs {
+        configureEach {
+            ideName = "NeoForge ${it.name.capitalize()} (${project.path})"
+        }
+        client {
+            client()
+            gameDirectory = project.file('runs/client')
+            // ./gradlew :neoforge:runClient -Phvx.autotest=true runs the automated in-game smoke test
+            systemProperty 'hvx.autotest', (project.findProperty('hvx.autotest') ?: 'false').toString()
+            if (project.findProperty('hvx.autotest') == 'true') programArguments.addAll('--width', '1600', '--height', '900')
+        }
+        server {
+            server()
+            gameDirectory = project.file('runs/server')
+            programArgument '--nogui'
+        }
+    }
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
+    }
+}
