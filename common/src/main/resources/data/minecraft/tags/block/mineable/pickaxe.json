@@ -1,0 +1,17 @@
+{
+  "replace": false,
+  "values": [
+    "hypervisorx:retro_pc",
+    "hypervisorx:gaming_tower",
+    "hypervisorx:server_rack",
+    "hypervisorx:monitor",
+    "hypervisorx:crt_monitor",
+    "hypervisorx:curved_monitor",
+    "hypervisorx:dual_monitor_arm",
+    "hypervisorx:triple_monitor_arm",
+    "hypervisorx:video_wall_panel",
+    "hypervisorx:pro_laptop",
+    "hypervisorx:rugged_laptop",
+    "hypervisorx:delivery_crate"
+  ]
+}

@@ -1,0 +1,88 @@
+{
+  "keyboard_click": {
+    "subtitle": "subtitles.hypervisorx.keyboard_click",
+    "sounds": [
+      {
+        "name": "minecraft:random/click",
+        "volume": 0.35,
+        "pitch": 1.9,
+        "type": "file"
+      }
+    ]
+  },
+  "pc_power_on": {
+    "subtitle": "subtitles.hypervisorx.pc_power_on",
+    "sounds": [
+      {
+        "name": "minecraft:block/beacon/activate",
+        "volume": 0.6,
+        "pitch": 1.6,
+        "type": "file"
+      }
+    ]
+  },
+  "pc_power_off": {
+    "subtitle": "subtitles.hypervisorx.pc_power_off",
+    "sounds": [
+      {
+        "name": "minecraft:block/beacon/deactivate",
+        "volume": 0.6,
+        "pitch": 1.6,
+        "type": "file"
+      }
+    ]
+  },
+  "pod_incoming": {
+    "subtitle": "subtitles.hypervisorx.pod_incoming",
+    "sounds": [
+      {
+        "name": "minecraft:fireworks/launch1",
+        "volume": 1.0,
+        "pitch": 0.5,
+        "attenuation_distance": 96,
+        "type": "file"
+      }
+    ]
+  },
+  "pod_land": {
+    "subtitle": "subtitles.hypervisorx.pod_land",
+    "sounds": [
+      {
+        "name": "minecraft:random/anvil_land",
+        "volume": 0.8,
+        "pitch": 0.6,
+        "attenuation_distance": 48,
+        "type": "file"
+      },
+      {
+        "name": "minecraft:random/explode1",
+        "volume": 0.4,
+        "pitch": 1.4,
+        "attenuation_distance": 48,
+        "type": "file"
+      }
+    ]
+  },
+  "tablet_beep": {
+    "subtitle": "subtitles.hypervisorx.tablet_beep",
+    "sounds": [
+      {
+        "name": "minecraft:note/bit",
+        "volume": 0.4,
+        "pitch": 1.8,
+        "type": "file"
+      }
+    ]
+  },
+  "order_confirmed": {
+    "subtitle": "subtitles.hypervisorx.order_confirmed",
+    "sounds": [
+      {
+        "name": "minecraft:random/levelup",
+        "volume": 0.5,
+        "pitch": 1.7,
+        "type": "file"
+      }
+    ]
+  }
+}

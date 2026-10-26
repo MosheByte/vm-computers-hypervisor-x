@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "hypervisorx:block/triple_monitor_arm"
+    },
+    "facing=east": {
+      "model": "hypervisorx:block/triple_monitor_arm",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "hypervisorx:block/triple_monitor_arm",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "hypervisorx:block/triple_monitor_arm",
+      "y": 270
+    }
+  }
+}

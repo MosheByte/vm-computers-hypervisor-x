@@ -1,0 +1,52 @@
+plugins {
+    id 'multiloader-common'
+    id 'net.neoforged.moddev'
+}
+
+description = project.property('description')
+
+neoForge {
+    neoFormVersion = neo_form_version
+    parchment {
+        minecraftVersion = parchment_minecraft
+        mappingsVersion = parchment_version
+    }
+}
+
+dependencies {
+    compileOnly group: 'org.spongepowered', name: 'mixin', version: '0.8.5'
+    // MC already ships JNA at runtime, it's only here so common can compile the Win32 capture code
+    compileOnly 'net.java.dev.jna:jna:5.14.0'
+    compileOnly 'net.java.dev.jna:jna-platform:5.14.0'
+
+    testImplementation platform('org.junit:junit-bom:5.11.3')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
+    // the embedded Linux boot test downloads a kernel image, so it's opt-in: -Phvx.bootTest=true
+    systemProperty 'hvx.bootTest', project.findProperty('hvx.bootTest') ?: 'false'
+    systemProperty 'hvx.testImage', project.findProperty('hvx.testImage') ?: ''
+    testLogging {
+        events 'passed', 'skipped', 'failed'
+        showStandardStreams = true
+    }
+}
+
+configurations {
+    commonJava {
+        canBeResolved = false
+        canBeConsumed = true
+    }
+    commonResources {
+        canBeResolved = false
+        canBeConsumed = true
+    }
+}
+
+artifacts {
+    commonJava sourceSets.main.java.sourceDirectories.singleFile
+    commonResources sourceSets.main.resources.sourceDirectories.singleFile
+}

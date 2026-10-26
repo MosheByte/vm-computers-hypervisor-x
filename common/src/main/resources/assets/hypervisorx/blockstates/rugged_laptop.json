@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "hypervisorx:block/rugged_laptop"
+    },
+    "facing=east": {
+      "model": "hypervisorx:block/rugged_laptop",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "hypervisorx:block/rugged_laptop",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "hypervisorx:block/rugged_laptop",
+      "y": 270
+    }
+  }
+}

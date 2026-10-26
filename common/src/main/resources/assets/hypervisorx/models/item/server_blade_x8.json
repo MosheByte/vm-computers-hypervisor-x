@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "hypervisorx:item/server_blade_x8"
+  }
+}

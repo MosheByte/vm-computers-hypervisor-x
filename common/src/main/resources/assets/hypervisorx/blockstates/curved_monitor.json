@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "hypervisorx:block/curved_monitor"
+    },
+    "facing=east": {
+      "model": "hypervisorx:block/curved_monitor",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "hypervisorx:block/curved_monitor",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "hypervisorx:block/curved_monitor",
+      "y": 270
+    }
+  }
+}
