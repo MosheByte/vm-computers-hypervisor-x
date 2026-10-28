@@ -8,7 +8,9 @@ import net.hypervisorx.client.render.BoundedRenderer;
 import net.hypervisorx.client.screen.ComputerScreen;
 import net.hypervisorx.client.screen.SettingsScreen;
 import net.hypervisorx.registry.HvxMenus;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ShaderInstance;
+import net.minecraft.client.resources.model.ModelResourceLocation;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
@@ -23,6 +25,7 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
+import net.neoforged.neoforge.client.event.ModelEvent;
 import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
@@ -61,6 +64,8 @@ final class HyperVisorXNeoForgeClient {
                 HyperVisorX.LOG.error("Could not load the sharp-bilinear screen shader, falling back to vanilla text shader", ex);
             }
         });
+        modBus.addListener((ModelEvent.RegisterAdditional e) -> HvxClient.PART_MODELS.forEach(id -> e.register(ModelResourceLocation.standalone(id))));
+        HvxClient.partModels = id -> Minecraft.getInstance().getModelManager().getModel(ModelResourceLocation.standalone(id));
         modBus.addListener((RegisterGuiLayersEvent e) -> e.registerAboveAll(HyperVisorX.id("laptop_pip"), HvxClient::onHud));
 
         NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post e) -> HvxClient.onClientTick());

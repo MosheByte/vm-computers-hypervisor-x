@@ -43,6 +43,7 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 
 import java.util.List;
+import java.util.function.Function;
 
 /** Client bootstrap plus the per-frame/per-tick hooks. Nothing loader-specific in here. */
 public final class HvxClient {
@@ -53,6 +54,15 @@ public final class HvxClient {
 
         <T extends Entity> void entity(EntityType<? extends T> type, EntityRendererProvider<T> provider);
     }
+
+    /** Extra block models the renderers draw themselves (the tower's insides). Each loader registers these. */
+    public static final List<ResourceLocation> PART_MODELS = List.of(
+            HyperVisorX.id("block/part/gpu_gt"), HyperVisorX.id("block/part/gpu_gx"), HyperVisorX.id("block/part/gpu_titan"),
+            HyperVisorX.id("block/part/ram"), HyperVisorX.id("block/part/cooler"), HyperVisorX.id("block/part/card"),
+            HyperVisorX.id("block/part/drive"));
+
+    /** Baked model lookup for {@link #PART_MODELS}. The loader plugs the real one in. */
+    public static Function<ResourceLocation, net.minecraft.client.resources.model.BakedModel> partModels = id -> null;
 
     private HvxClient() {
     }

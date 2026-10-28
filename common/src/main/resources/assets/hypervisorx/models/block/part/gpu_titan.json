@@ -1,0 +1,193 @@
+{
+ "parent": "block/block",
+ "textures": {
+  "atlas": "hypervisorx:block/model/part/gpu_titan",
+  "fan": "hypervisorx:block/fx/fan_rgb",
+  "rgb": "hypervisorx:block/fx/rgb_strip",
+  "particle": "hypervisorx:block/model/part/gpu_titan"
+ },
+ "elements": [
+  {
+   "from": [
+    4.4,
+    5.0,
+    2.0
+   ],
+   "to": [
+    9.6,
+    6.9,
+    13.6
+   ],
+   "faces": {
+    "north": {
+     "texture": "#atlas",
+     "uv": [
+      11.5,
+      0.0,
+      14.25,
+      1.0
+     ]
+    },
+    "south": {
+     "texture": "#atlas",
+     "uv": [
+      0.0,
+      6.0,
+      2.75,
+      7.0
+     ]
+    },
+    "east": {
+     "texture": "#atlas",
+     "uv": [
+      5.5,
+      0.0,
+      11.5,
+      1.0
+     ]
+    },
+    "up": {
+     "texture": "#atlas",
+     "uv": [
+      0.0,
+      0.0,
+      2.75,
+      6.0
+     ]
+    },
+    "down": {
+     "texture": "#atlas",
+     "uv": [
+      2.75,
+      0.0,
+      5.5,
+      6.0
+     ]
+    }
+   }
+  },
+  {
+   "from": [
+    4.7,
+    4.8,
+    2.15
+   ],
+   "to": [
+    9.3,
+    5.0,
+    5.7167
+   ],
+   "faces": {
+    "east": {
+     "texture": "#atlas",
+     "uv": [
+      2.75,
+      6.0,
+      4.75,
+      6.25
+     ]
+    },
+    "down": {
+     "texture": "#fan",
+     "uv": [
+      0,
+      0,
+      16,
+      16
+     ]
+    }
+   },
+   "shade": false
+  },
+  {
+   "from": [
+    4.7,
+    4.8,
+    6.0167
+   ],
+   "to": [
+    9.3,
+    5.0,
+    9.5833
+   ],
+   "faces": {
+    "east": {
+     "texture": "#atlas",
+     "uv": [
+      4.75,
+      6.0,
+      6.75,
+      6.25
+     ]
+    },
+    "down": {
+     "texture": "#fan",
+     "uv": [
+      0,
+      0,
+      16,
+      16
+     ]
+    }
+   },
+   "shade": false
+  },
+  {
+   "from": [
+    4.7,
+    4.8,
+    9.8833
+   ],
+   "to": [
+    9.3,
+    5.0,
+    13.45
+   ],
+   "faces": {
+    "east": {
+     "texture": "#atlas",
+     "uv": [
+      6.75,
+      6.0,
+      8.75,
+      6.25
+     ]
+    },
+    "down": {
+     "texture": "#fan",
+     "uv": [
+      0,
+      0,
+      16,
+      16
+     ]
+    }
+   },
+   "shade": false
+  },
+  {
+   "from": [
+    9.6,
+    6.2,
+    2.4
+   ],
+   "to": [
+    9.65,
+    6.6,
+    13.2
+   ],
+   "faces": {
+    "east": {
+     "texture": "#rgb",
+     "uv": [
+      0,
+      0,
+      16,
+      2
+     ]
+    }
+   },
+   "shade": false
+  }
+ ]
+}

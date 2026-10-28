@@ -1,3 +1,27 @@
+# VM Computers: HyperVisor X — 1.1.0
+
+Visual overhaul and a verified VMware path.
+
+## Design
+- Every block model rebuilt from real hardware references: beige AT mini-tower with CD-ROM, floppy,
+  turbo display and key lock; 14" CRT with recessed tube; thin-bezel 24" monitor on a brushed stand;
+  panoramic dual-glass gaming tower (vertical RGB intake fans, top radiator, PSU shroud, motherboard
+  with VRM heatsinks and DIMM slots); 2U rack servers with hot-swap caddies and live drive LEDs;
+  aluminium and rugged laptops; full-size 104-key RGB keyboard with per-key backlight; bookshelf
+  speakers with woofer, tweeter and bass port; cargo crate and drop pod.
+- The tower interior is built from the parts you install: graphics card (GT / GX / Titan models with
+  their own fans), RGB RAM sticks per DIMM slot, AIO pump head with LCD, add-in card and SSD.
+- New 32x32 item icons for every part (IHS-capped CPUs, heat-spreader RAM with light bar, triple-fan
+  GPUs, 3.5"/2.5"/M.2 drives, USB stick, PCIe cards, blades) and ghost icons for empty typed slots.
+- New UI design system: dark dashboard windows, rounded cards with section labels, icon buttons with
+  tooltips, status pills, auto-fitting labels (nothing spills out of its box), a proper inventory
+  grid, sidebar store navigation and a cart with per-line totals.
+- Curved ultrawide: rear light bar, thinner bezels and no seams between the curve segments.
+
+## Engines
+- VMware Workstation Pro **26H1u1** verified end to end (install, detection, VM creation, VNC
+  streaming, 1024x768 desktop in-game); status text no longer shows a stale resolution.
+
 # VM Computers: HyperVisor X — 1.0.0
 
 First release for Minecraft **1.21.1** on **NeoForge** and **Fabric** (Java 21).

@@ -5,6 +5,7 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.model.loading.v1.ModelLoadingPlugin;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.BlockEntityRendererRegistry;
@@ -17,6 +18,7 @@ import net.hypervisorx.client.HvxKeys;
 import net.hypervisorx.client.screen.ComputerScreen;
 import net.hypervisorx.network.HvxNetwork;
 import net.hypervisorx.registry.HvxMenus;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
@@ -34,6 +36,8 @@ public final class HyperVisorXFabricClient implements ClientModInitializer {
         HvxClient.init();
         for (HvxNetwork.S2CDef<?> def : HvxNetwork.S2C_PAYLOADS) registerReceiver(def);
         HvxKeys.ALL.forEach(KeyBindingHelper::registerKeyBinding);
+        ModelLoadingPlugin.register(ctx -> ctx.addModels(HvxClient.PART_MODELS));
+        HvxClient.partModels = id -> Minecraft.getInstance().getModelManager().getModel(id);
         MenuScreens.register(HvxMenus.COMPUTER.get(), ComputerScreen::new);
         HvxClient.registerRenderers(new HvxClient.RendererSink() {
             @Override
