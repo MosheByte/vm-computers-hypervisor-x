@@ -3,8 +3,8 @@
 המסמך הזה מיועד לך כמפרסם. כל הטקסטים באנגלית/סינית מוכנים להעתקה כמו שהם.
 עדכן כתובות אם שינית שם משתמש או שם מאגר.
 
-- מאגר: https://github.com/MosheBarami/vm-computers-hypervisor-x
-- הורדות: https://github.com/MosheBarami/vm-computers-hypervisor-x/releases
+- מאגר: https://github.com/MosheByte/vm-computers-hypervisor-x
+- הורדות: https://github.com/MosheByte/vm-computers-hypervisor-x/releases
 
 ---
 
@@ -33,7 +33,7 @@
 
 ### בנייה מקוד (אופציונלי)
 ```bash
-git clone https://github.com/MosheBarami/vm-computers-hypervisor-x
+git clone https://github.com/MosheByte/vm-computers-hypervisor-x
 cd vm-computers-hypervisor-x
 ./gradlew build
 ```
@@ -113,7 +113,7 @@ What's new: Minecraft 1.21.1 (NeoForge + Fabric), VMware / VirtualBox / QEMU sup
 Linux computer that needs no install, laptops, server racks, curved monitors, video walls,
 redstone GPIO and real multiplayer streaming.
 
-Downloads: https://github.com/MosheBarami/vm-computers-hypervisor-x/releases
+Downloads: https://github.com/MosheByte/vm-computers-hypervisor-x/releases
 Bug reports and ideas are very welcome in Issues. Full credit to Delta2Force for the original mod.
 ```
 
@@ -180,7 +180,7 @@ so I wrote a successor from the ground up:
 - /hvx demo builds the whole showroom from the screenshot
 
 Open source (GPL-3.0). Feedback very welcome!
-GitHub / downloads: https://github.com/MosheBarami/vm-computers-hypervisor-x
+GitHub / downloads: https://github.com/MosheByte/vm-computers-hypervisor-x
 ```
 
 ### r/Minecraft  (Flair: Mod; העלה סרטון/תמונה)
@@ -211,7 +211,7 @@ on in-game monitors.
 - Client: dirty-run PBO uploads, trilinear + anisotropic, sharp-bilinear shader for magnification
 - Zero-install fallback: mini-rv32ima ported to Java (~70 MIPS on a modern desktop CPU), boots Linux 6.1 to the login prompt in under a second (0.66 s measured)
 
-Code (GPL-3.0): https://github.com/MosheBarami/vm-computers-hypervisor-x
+Code (GPL-3.0): https://github.com/MosheByte/vm-computers-hypervisor-x
 ```
 
 ---
