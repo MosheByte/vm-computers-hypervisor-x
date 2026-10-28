@@ -48,8 +48,20 @@ import java.util.UUID;
  */
 public final class AutoTest {
     public static final boolean DEMO_WORLD = Boolean.getBoolean("hvx.demoworld");
-    public static final boolean VMWARE = Boolean.getBoolean("hvx.vmwaretest");
+    /** Which hypervisor the end-to-end test uses: -Dhvx.backendtest=vmware|virtualbox|qemu|hostcapture (-Dhvx.vmwaretest = vmware). */
+    public static final String BACKEND = System.getProperty("hvx.backendtest", "").isBlank()
+            ? (Boolean.getBoolean("hvx.vmwaretest") ? "vmware" : "") : System.getProperty("hvx.backendtest").trim();
+    public static final boolean VMWARE = !BACKEND.isEmpty();
     public static final boolean ENABLED = Boolean.getBoolean("hvx.autotest") || DEMO_WORLD || VMWARE;
+    private static final boolean CAPTURE = BACKEND.equals("hostcapture");
+    /** -Dhvx.testimage=<absolute path> boots that image instead of Tiny Core, -Dhvx.testos=WINDOWS_11 etc. sets the guest type. */
+    private static final String TEST_IMAGE = System.getProperty("hvx.testimage", "").trim();
+    private static final GuestOs TEST_OS = GuestOs.parse(System.getProperty("hvx.testos", "LINUX"));
+    /** Long guest installs (Windows): sit in focus mode and grab a progress shot every 2 minutes. */
+    private static final boolean LONG_RUN = !TEST_IMAGE.isEmpty() && TEST_OS != GuestOs.LINUX;
+    private static String testImageName = "TinyCore-16.iso";
+    private static int progressShots;
+    private static final String CAPTURE_TITLE = "HyperVisor X capture test";
     private static int stage;
     private static int ticks;
     private static UUID demoVm;
@@ -137,8 +149,14 @@ public final class AutoTest {
                     if (ticks == 152) mc.setScreen(null);
                     if (ticks == 152) teleport(mc, -4.0, 0.2, -1.9, 180f, 32f);
                     if (ticks == 200) shot(mc, "hvx-desk.png");
-                    if (ticks == 202) teleport(mc, -1.0, 0.6, 0.6, 180f, 18f);
-                    if (ticks == 210 && demoVm != null) mc.setScreen(new FocusScreen(demoVm, false));
+                    if (ticks == 202) standBeforeScreen(mc, demoVm);
+                    if (ticks == 230 && demoVm != null) mc.setScreen(new FocusScreen(demoVm, false));
+                    if (ticks == 320 && demoVm != null) {
+                        double cx = mc.getWindow().getGuiScaledWidth() / 2.0, cy = mc.getWindow().getGuiScaledHeight() / 2.0;
+                        ScreenHits.Hit hit = DeskView.pick(demoVm, cx, cy, mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight());
+                        log("desk view: seated=" + DeskView.active() + " centre hit=" + (hit == null ? "none"
+                                : String.format(java.util.Locale.ROOT, "u=%.3f v=%.3f d=%.2f", hit.u(), hit.v(), hit.distance())));
+                    }
                     if (ticks == 330) {
                         shot(mc, "hvx-focus.png");
                         mc.setScreen(new StoreScreen());
@@ -159,6 +177,51 @@ public final class AutoTest {
                     }
                     if (ticks == 560) {
                         shot(mc, "hvx-computer-tower.png");
+                        var server = mc.getSingleplayerServer();
+                        UUID self = mc.player.getUUID();
+                        server.execute(() -> {
+                            ServerPlayer sp = server.getPlayerList().getPlayer(self);
+                            if (sp == null) return;
+                            for (var it : List.of(net.hypervisorx.registry.HvxItems.RAM_32, net.hypervisorx.registry.HvxItems.GPU_GT,
+                                    net.hypervisorx.registry.HvxItems.NVME, net.hypervisorx.registry.HvxItems.HDD, net.hypervisorx.registry.HvxItems.CPU_X8)) {
+                                sp.getInventory().add(new net.minecraft.world.item.ItemStack(it.get()));
+                            }
+                        });
+                    }
+                    // motherboard page: pull parts out, put them back in through the socket picker
+                    if (mc.screen instanceof net.hypervisorx.client.screen.ComputerScreen cs && cs.board() != null && ticks > 560 && ticks < 800) {
+                        var b = cs.board();
+                        if (ticks == 570) b.testRemove(5);
+                        if (ticks == 590) b.testInstall(5);
+                        if (ticks == 598) shot(mc, "hvx-board-anim-gpu.png");
+                        if (ticks == 620) b.testRemove(1);
+                        if (ticks == 640) b.testInstall(1);
+                        if (ticks == 646) shot(mc, "hvx-board-anim-ram.png");
+                        if (ticks == 660) b.testRemove(0);
+                        if (ticks == 680) b.testInstall(0);
+                        if (ticks == 690) shot(mc, "hvx-board-anim-cpu.png");
+                        if (ticks == 700) b.testView(-30f, 40f);
+                        if (ticks == 712) shot(mc, "hvx-board-turned.png");
+                        if (ticks == 716) b.testView(14f, 50f);
+                        if (ticks == 720) {
+                            shot(mc, "hvx-board-done.png");
+                            StringBuilder sb = new StringBuilder("board slots:");
+                            for (int i = 0; i < cs.getMenu().form().slotCount(); i++) sb.append(' ').append(i).append('=')
+                                    .append(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(cs.getMenu().slots.get(i).getItem().getItem()).getPath());
+                            log(sb.toString());
+                            b.testOpen(6);
+                        }
+                        if (ticks == 730) shot(mc, "hvx-board-picker.png");
+                        if (ticks == 740) {
+                            b.close();
+                            cs.showBoard(false);
+                        }
+                        if (ticks == 750) {
+                            shot(mc, "hvx-computer-system.png");
+                            cs.showBoard(true);
+                        }
+                    }
+                    if (ticks == 800) {
                         mc.setScreen(null);
                         stage = VMWARE ? 10 : 5;
                         ticks = 0;
@@ -209,6 +272,32 @@ public final class AutoTest {
                 }
                 // ------------------------------------------------------------ VMware end-to-end test
                 case 10 -> {
+                    if (CAPTURE && ticks == 1) {
+                        // need a window we own to capture: Notepad, with a known file name in the title
+                        Path f = Path.of(System.getProperty("java.io.tmpdir"), CAPTURE_TITLE + ".txt");
+                        Files.writeString(f, "HyperVisor X host window capture test\r\n\r\nThis Notepad window is shown on a monitor inside Minecraft.\r\n");
+                        new ProcessBuilder("notepad.exe", f.toString()).start();
+                        HvxConfig.get().allowHostWindowCapture = true;
+                        log("capture: started Notepad and enabled host window capture for the test");
+                    }
+                    if (CAPTURE) {
+                        if (ticks == 60) {
+                            stage = 11;
+                            ticks = 0;
+                        }
+                        return;
+                    }
+                    if (!TEST_IMAGE.isEmpty()) {
+                        if (ticks == 1) {
+                            testImageName = ImageLibrary.importPath(TEST_IMAGE);
+                            log("test image linked: " + testImageName + " (" + TEST_OS + ")");
+                        }
+                        if (ticks == 20) {
+                            stage = 11;
+                            ticks = 0;
+                        }
+                        return;
+                    }
                     if (ticks == 1) {
                         var server = mc.getSingleplayerServer();
                         server.execute(() -> {
@@ -244,67 +333,93 @@ public final class AutoTest {
                                 return;
                             }
                             VmRecord r = HostService.ensureRecord(sp, gaming, 0);
-                            r.backend = "vmware";
-                            r.guestOs = GuestOs.LINUX;
-                            r.image = "TinyCore-16.iso";
-                            r.name = "VMware: Tiny Core Linux";
+                            r.backend = BACKEND;
+                            r.guestOs = TEST_OS;
+                            r.efi = TEST_OS.needsEfiAndTpm();
+                            r.image = CAPTURE ? "" : testImageName;
+                            r.target = CAPTURE ? CAPTURE_TITLE : "";
+                            r.name = CAPTURE ? "Host window: Notepad" : BACKEND + ": " + (LONG_RUN ? TEST_OS.displayName() : "Tiny Core Linux");
                             r.access = VmRecord.Access.PUBLIC;
                             if (curved != null && sp.level().getBlockEntity(curved) instanceof DisplayBlockEntity d) d.link(tower, 0);
                             VmManager m = VmManager.get();
                             m.data().changed();
                             vmwareVm = r.id;
                             Component err = m.startUnchecked(r, gaming.builtSpec(), gaming);
-                            log("VMware start: " + (err == null ? "ok" : err.getString()) + " vm=" + r.id + " pc=" + pc);
+                            log(BACKEND + " start: " + (err == null ? "ok" : err.getString()) + " vm=" + r.id + " pc=" + pc);
                         });
                     }
                     if (ticks == 40) teleport(mc, 0.6, 0.4, -1.6, 180f, 14f);
+                    if (LONG_RUN && vmwareVm != null) {
+                        // watch the whole install full screen, a shot every 2 min, status every 10s
+                        if (ticks == 80) mc.setScreen(new FocusScreen(vmwareVm, false));
+                        var st = ClientVmCache.get(vmwareVm);
+                        if (ticks % 200 == 0) log(BACKEND + " install: " + (st == null ? "none" : st.state() + " " + st.width() + "x" + st.height() + " "
+                                + Math.round(st.fps()) + " fps '" + st.message() + "'"));
+                        if (ticks % 2400 == 1200) shot(mc, "hvx-win-progress-" + (++progressShots) + ".png");
+                        if (st != null && st.state().equals("ERROR")) {
+                            log(BACKEND + " ERROR: " + st.message());
+                            stage = 19;
+                            ticks = 0;
+                        }
+                        return;
+                    }
                     if (ticks > 60 && ticks % 40 == 0 && vmwareVm != null) {
                         var st = ClientVmCache.get(vmwareVm);
                         ScreenTexture tex = ScreenTextureManager.get(vmwareVm);
                         if (ticks % 200 == 0) {
-                            log("VMware status=" + (st == null ? "none" : st.state() + " " + st.width() + "x" + st.height() + " '" + st.message() + "'")
-                                    + " texture=" + (tex == null ? "none" : tex.width() + "x" + tex.height() + " content=" + tex.hasContent()));
+                            log(BACKEND + " status=" + (st == null ? "none" : st.state() + " " + st.width() + "x" + st.height() + " " + Math.round(st.fps())
+                                    + " fps '" + st.message() + "'") + " texture=" + (tex == null ? "none" : tex.width() + "x" + tex.height() + " content=" + tex.hasContent()));
                         }
                         if (st != null && st.state().equals("ERROR")) {
-                            log("VMware ERROR: " + st.message());
+                            log(BACKEND + " ERROR: " + st.message());
                             stage = 19;
+                            ticks = 0;
+                        } else if (CAPTURE && tex != null && tex.hasContent() && ticks > 200) {
+                            stage = 12;
                             ticks = 0;
                         } else if (tex != null && tex.hasContent() && st.width() >= 800) {
                             // hit graphics mode (X11 is up), give the desktop time to load its dock
                             if (desktopAt < 0) {
                                 desktopAt = ticks;
-                                log("VMware guest switched to " + st.width() + "x" + st.height());
+                                log(BACKEND + " guest switched to " + st.width() + "x" + st.height());
                             } else if (ticks - desktopAt > 20 * 45) {
                                 stage = 12;
                                 ticks = 0;
                             }
-                        } else if (ticks > 20 * 240) {
-                            log("VMware: no picture after 4 minutes");
+                        } else if (ticks > 20 * 300) {
+                            log(BACKEND + ": no desktop picture after 5 minutes");
                             stage = 19;
                             ticks = 0;
                         }
                     }
                 }
                 case 12 -> {
-                    if (ticks == 1) shot(mc, "hvx-vmware-world.png");
+                    String p = "hvx-" + BACKEND + "-";
+                    if (ticks == 1) shot(mc, p + "world.png");
                     if (ticks == 10) mc.setScreen(new FocusScreen(vmwareVm, false));
-                    // interaction check: move the guest cursor around, then click the terminal in the dock
-                    if (ticks == 40) pointer(mc, 120, 120, 0);
-                    if (ticks == 60) shot(mc, "hvx-vmware-pointer-a.png");
-                    if (ticks == 62) pointer(mc, 870, 600, 0);
-                    if (ticks == 82) shot(mc, "hvx-vmware-pointer-b.png");
-                    if (ticks == 84) pointer(mc, 610, 742, 0);
-                    if (ticks == 90) pointer(mc, 610, 742, 1);
-                    if (ticks == 93) pointer(mc, 610, 742, 0);
-                    if (ticks == 120) shot(mc, "hvx-vmware-focus.png");
+                    // input check (VMs only): wiggle the guest cursor around, then click the terminal in the dock
+                    if (!CAPTURE) {
+                        if (ticks == 40) pointer(mc, 120, 120, 0);
+                        if (ticks == 60) shot(mc, p + "pointer-a.png");
+                        if (ticks == 62) pointer(mc, 870, 600, 0);
+                        if (ticks == 82) shot(mc, p + "pointer-b.png");
+                        if (ticks == 84) pointer(mc, 610, 742, 0);
+                        if (ticks == 90) pointer(mc, 610, 742, 1);
+                        if (ticks == 93) pointer(mc, 610, 742, 0);
+                    }
+                    if (ticks == 120) {
+                        var st = ClientVmCache.get(vmwareVm);
+                        log(BACKEND + " focus: " + (st == null ? "?" : st.width() + "x" + st.height() + " " + Math.round(st.fps()) + " fps '" + st.message() + "'"));
+                        shot(mc, p + "focus.png");
+                    }
                     if (ticks == 130) {
                         mc.setScreen(null);
                         openPcMenu(mc, DemoBuilder.lastTower);
                     }
                     if (ticks == 190) {
-                        shot(mc, "hvx-vmware-pc.png");
+                        shot(mc, p + "pc.png");
                         mc.setScreen(null);
-                        log("VMware test PASSED");
+                        log(BACKEND + " test PASSED");
                         stage = 19;
                         ticks = 0;
                     }
@@ -337,6 +452,32 @@ public final class AutoTest {
             ServerPlayer sp = server.getPlayerList().getPlayer(self);
             if (sp == null || o == null) return;
             sp.teleportTo(sp.serverLevel(), o.x + dx, o.y + dy, o.z + dz, yaw, pitch);
+        });
+    }
+
+    /** Puts the player 2.2 blocks in front of the closest flat monitor showing {@code vm}, looking at it (like walking up to it). */
+    private static void standBeforeScreen(Minecraft mc, UUID vm) {
+        BlockPos best = null;
+        BlockPos center = mc.player.blockPosition();
+        for (BlockPos p : BlockPos.betweenClosed(center.offset(-16, -4, -16), center.offset(16, 6, 16))) {
+            if (mc.level.getBlockEntity(p) instanceof DisplayBlockEntity d && vm != null && vm.equals(d.displayedVm())
+                    && mc.level.getBlockState(p).getBlock() == net.hypervisorx.registry.HvxBlocks.MONITOR.get()
+                    && (best == null || p.distSqr(center) < best.distSqr(center))) best = p.immutable();
+        }
+        if (best == null) {
+            log("desk view: no monitor of the demo VM found");
+            return;
+        }
+        var facing = mc.level.getBlockState(best).getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.HORIZONTAL_FACING);
+        Vec3 c = Vec3.atBottomCenterOf(best);
+        double x = c.x + facing.getStepX() * 2.2, z = c.z + facing.getStepZ() * 2.2;
+        float yaw = facing.getOpposite().toYRot();
+        var server = mc.getSingleplayerServer();
+        UUID self = mc.player.getUUID();
+        log("desk view: standing before monitor " + best + " facing " + facing);
+        server.execute(() -> {
+            ServerPlayer sp = server.getPlayerList().getPlayer(self);
+            if (sp != null) sp.teleportTo(sp.serverLevel(), x, c.y - 0.6, z, yaw, 22f);
         });
     }
 

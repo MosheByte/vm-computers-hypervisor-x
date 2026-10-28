@@ -1,6 +1,8 @@
 package net.hypervisorx.client.screen;
 
 import net.hypervisorx.client.ClientVmCache;
+import net.hypervisorx.client.DeskView;
+import net.hypervisorx.client.ScreenHits;
 import net.hypervisorx.client.HvxKeys;
 import net.hypervisorx.client.ScreenTracker;
 import net.hypervisorx.client.render.ScreenTexture;
@@ -20,9 +22,11 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * "Focus Zoom / Fullscreen Lock": the VM fills the window and receives every key (including
- * Escape and Tab) and absolute mouse input. The dedicated release key (Right Ctrl by default)
- * gives control back to Minecraft without any Escape juggling.
+ * Using a computer. By default the player stays in the world: the camera settles in front of the
+ * screen that was clicked ({@link DeskView}) and the mouse is cast onto that in-world screen, so
+ * the room stays visible around the monitor. The toolbar switches to the classic full-window view.
+ * Either way the VM receives every key (including Escape and Tab) and absolute mouse input; the
+ * release key (Right Ctrl by default) gives control back to Minecraft.
  */
 public class FocusScreen extends Screen {
     private final UUID vm;
@@ -44,6 +48,10 @@ public class FocusScreen extends Screen {
     private long lastFrame = System.currentTimeMillis();
     private int pillX, pillW;
     private static final int PILL_H = 22;
+    /** in-world view (camera seated at the screen) instead of the full-window picture */
+    private boolean world;
+    private boolean decided;
+    private long worldSince;
 
     public FocusScreen(UUID vm, boolean laptop) {
         super(Component.translatable("hypervisorx.focus.title"));
@@ -58,6 +66,11 @@ public class FocusScreen extends Screen {
     @Override
     protected void init() {
         bar.clear();
+        if (!decided) {
+            decided = true;
+            world = HvxClientConfig.get().focusInWorld && DeskView.enter(vm);
+            worldSince = System.currentTimeMillis();
+        }
         // floating toolbar pill up top: power, stop, reset, Ctrl+Alt+Del, snapshot, release
         UiKit.FlatButton power = new UiKit.FlatButton(0, 0, 22, 16, Component.empty(), () -> action(running()
                 ? C2S.HostAction.SHUTDOWN : C2S.HostAction.POWER_ON)).icon(UiKit.Icon.POWER).accent(UiKit.OK);
@@ -67,7 +80,9 @@ public class FocusScreen extends Screen {
         addBar(UiKit.Icon.RESET, Component.translatable("hypervisorx.focus.reset"), () -> action(C2S.HostAction.RESET), UiKit.WARN);
         addBar(UiKit.Icon.KEYBOARD, Component.literal("Ctrl+Alt+Del"), () -> action(C2S.HostAction.CTRL_ALT_DEL), UiKit.ACCENT_2);
         addBar(UiKit.Icon.CAMERA, Component.translatable("hypervisorx.focus.snapshot"), () -> action(C2S.HostAction.SNAPSHOT), UiKit.ACCENT);
-        Component release = Component.translatable("hypervisorx.focus.release", HvxKeys.RELEASE.getTranslatedKeyMessage());
+        addBar(world ? UiKit.Icon.FOCUS : UiKit.Icon.EYE, Component.translatable(world ? "hypervisorx.focus.view_full" : "hypervisorx.focus.view_world"),
+                this::toggleView, UiKit.ACCENT_2);
+        Component release = Component.translatable(world ? "hypervisorx.focus.stand_up" : "hypervisorx.focus.release", HvxKeys.RELEASE.getTranslatedKeyMessage());
         // sized to its label so "Release (Right Control)" never gets clipped (only capped at half the window)
         int rw = Math.min(width / 2, font.width(release) + 30);
         bar.add(addRenderableWidget(new UiKit.FlatButton(0, 0, rw, 16, release, this::onClose).icon(UiKit.Icon.BACK).style(UiKit.Style.PRIMARY)));
@@ -77,6 +92,20 @@ public class FocusScreen extends Screen {
         UiKit.FlatButton b = new UiKit.FlatButton(0, 0, 22, 16, Component.empty(), action).icon(icon).accent(accent).tip(tip);
         if (accent == UiKit.ERROR) b.style(UiKit.Style.DANGER);
         bar.add(addRenderableWidget(b));
+    }
+
+    /** flips between the seated in-world view and the full-window picture */
+    private void toggleView() {
+        if (world) {
+            DeskView.exit();
+            world = false;
+        } else if (DeskView.enter(vm)) {
+            world = true;
+            worldSince = System.currentTimeMillis();
+        } else {
+            minecraft.gui.setOverlayMessage(Component.translatable("hypervisorx.focus.no_screen"), false);
+        }
+        rebuildWidgets();
     }
 
     private int pillY() {
@@ -108,7 +137,8 @@ public class FocusScreen extends Screen {
 
     @Override
     public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        g.fill(0, 0, width, height, 0xFF000000);
+        // seated: the world is the background
+        if (!world) g.fill(0, 0, width, height, 0xFF000000);
     }
 
     /** alt-tab with a key held would leave it stuck down in the guest, so let go of everything when we lose focus */
@@ -134,7 +164,16 @@ public class FocusScreen extends Screen {
             float t = Mth.clamp((System.currentTimeMillis() - openedAt) / 220f, 0f, 1f);
             zoom = 0.86f + 0.14f * (1 - (1 - t) * (1 - t));
         }
-        if (tex != null && tex.hasContent() && running()) {
+        if (world) {
+            rectX0 = rectX1 = rectY0 = rectY1 = 0;
+            if (minecraft.player == null || !minecraft.player.isAlive() || !DeskView.active()
+                    || minecraft.player.getEyePosition().distanceTo(DeskView.lookAt()) > 10) {
+                onClose();
+                return;
+            }
+            if (!(tex != null && tex.hasContent() && running())) statePanel(g, status, height - 70 - 28);
+            else if (System.currentTimeMillis() - worldSince < 5000) seatedHint(g);
+        } else if (tex != null && tex.hasContent() && running()) {
             float aspect = tex.width() / (float) tex.height();
             float w = width;
             float h = width / aspect;
@@ -151,20 +190,43 @@ public class FocusScreen extends Screen {
             GuiTex.draw(g, tex.location(), rectX0, rectY0, rectX1, rectY1);
         } else {
             rectX0 = rectX1 = rectY0 = rectY1 = 0;
-            int cw = 260;
-            int ch = 70;
-            int x = (width - cw) / 2;
-            int y = (height - ch) / 2;
-            UiKit.panel(g, x, y, cw, ch);
-            Component title = Component.literal(status == null ? "..." : status.name());
-            g.drawCenteredString(font, title, width / 2, y + 12, UiKit.TEXT);
-            String state = status == null ? "" : status.state();
-            Component line = state.equals("ERROR") ? Component.literal(UiKit.ellipsize(font, status.message(), cw - 12))
-                    : Component.translatable(running() ? "hypervisorx.screen.booting" : "hypervisorx.focus.off");
-            g.drawCenteredString(font, line, width / 2, y + 30, state.equals("ERROR") ? UiKit.ERROR : UiKit.MUTED);
-            g.drawCenteredString(font, Component.translatable("hypervisorx.focus.hint", HvxKeys.RELEASE.getTranslatedKeyMessage()),
-                    width / 2, y + 48, UiKit.MUTED);
+            statePanel(g, status, (height - 70) / 2);
         }
+        renderToolbar(g, status, mouseX, mouseY, partialTick);
+    }
+
+    /** Small pill at the bottom while settling in: how to get up again. */
+    private void seatedHint(GuiGraphics g) {
+        float a = Mth.clamp((5000 - (System.currentTimeMillis() - worldSince)) / 600f, 0f, 1f);
+        int alpha = (int) (0xD9 * a);
+        if (alpha < 8) return;
+        Component hint = Component.translatable("hypervisorx.focus.seated_hint", HvxKeys.RELEASE.getTranslatedKeyMessage());
+        int w = Math.min(width - 20, font.width(hint) + 20);
+        int x = (width - w) / 2;
+        int y = height - 26;
+        UiKit.box(g, x, y, w, 16, UiKit.withAlpha(0x171B22, alpha), UiKit.withAlpha(UiKit.STROKE, alpha));
+        g.drawCenteredString(font, Component.literal(UiKit.clip(font, hint.getString(), w - 8)), width / 2, y + 4,
+                UiKit.withAlpha(0xE9EDF3, Math.max(8, (int) (255 * a))));
+    }
+
+    /** off, booting or failed: shows the name, the state and how to get out */
+    private void statePanel(GuiGraphics g, S2C.VmStatus status, int y) {
+        // wide enough for the longest line (the release hint) but never wider than the window
+        Component hint = Component.translatable("hypervisorx.focus.hint", HvxKeys.RELEASE.getTranslatedKeyMessage());
+        int cw = Math.min(width - 20, Math.max(260, font.width(hint) + 32));
+        int ch = 70;
+        int x = (width - cw) / 2;
+        UiKit.panel(g, x, y, cw, ch);
+        Component title = Component.literal(status == null ? "..." : status.name());
+        g.drawCenteredString(font, title, width / 2, y + 12, UiKit.TEXT);
+        String state = status == null ? "" : status.state();
+        Component line = state.equals("ERROR") ? Component.literal(UiKit.ellipsize(font, status.message(), cw - 12))
+                : Component.translatable(running() ? "hypervisorx.screen.booting" : "hypervisorx.focus.off");
+        g.drawCenteredString(font, line, width / 2, y + 30, state.equals("ERROR") ? UiKit.ERROR : UiKit.MUTED);
+        g.drawCenteredString(font, Component.literal(UiKit.clip(font, hint.getString(), cw - 12)), width / 2, y + 48, UiKit.MUTED);
+    }
+
+    private void renderToolbar(GuiGraphics g, S2C.VmStatus status, int mouseX, int mouseY, float partialTick) {
         // slide the toolbar in and out, ~150 ms
         long now = System.currentTimeMillis();
         float dt = Math.min(0.1f, (now - lastFrame) / 1000f);
@@ -229,13 +291,20 @@ public class FocusScreen extends Screen {
     @Override
     public void removed() {
         setCursorHidden(false);
+        if (world) DeskView.exit();
         super.removed();
     }
 
     // ------------------------------------------------------------------ input
 
     private boolean insideVm(double mx, double my) {
+        if (world) return running() && hitAt(mx, my) != null;
         return rectX1 > rectX0 && mx >= rectX0 && mx < rectX1 && my >= rectY0 && my < rectY1;
+    }
+
+    /** where the mouse ray hits the in-world picture (seated view) */
+    private ScreenHits.Hit hitAt(double mx, double my) {
+        return DeskView.pick(vm, mx, my, width, height);
     }
 
     private int[] toVm(double mx, double my) {
@@ -243,6 +312,11 @@ public class FocusScreen extends Screen {
         ScreenTexture tex = ScreenTextureManager.get(vm);
         int w = tex != null ? tex.width() : s != null ? s.width() : 1;
         int h = tex != null ? tex.height() : s != null ? s.height() : 1;
+        if (world) {
+            ScreenHits.Hit hit = hitAt(mx, my);
+            if (hit == null) return new int[]{Math.max(0, lastVmX), Math.max(0, lastVmY)};
+            return new int[]{Mth.clamp((int) (hit.u() * w), 0, w - 1), Mth.clamp((int) (hit.v() * h), 0, h - 1)};
+        }
         int x = (int) ((mx - rectX0) / (rectX1 - rectX0) * w);
         int y = (int) ((my - rectY0) / (rectY1 - rectY0) * h);
         return new int[]{Mth.clamp(x, 0, w - 1), Mth.clamp(y, 0, h - 1)};

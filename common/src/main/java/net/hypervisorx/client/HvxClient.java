@@ -114,7 +114,8 @@ public final class HvxClient {
     private static final Runnable DEV_HOOK = devHook();
 
     private static Runnable devHook() {
-        if (!Boolean.getBoolean("hvx.autotest") && !Boolean.getBoolean("hvx.demoworld") && !Boolean.getBoolean("hvx.vmwaretest")) return () -> { };
+        if (!Boolean.getBoolean("hvx.autotest") && !Boolean.getBoolean("hvx.demoworld") && !Boolean.getBoolean("hvx.vmwaretest")
+                && System.getProperty("hvx.backendtest", "").isBlank()) return () -> { };
         try {
             java.lang.reflect.Method tick = Class.forName("net.hypervisorx.client.AutoTest").getMethod("tick");
             return () -> {
@@ -173,6 +174,7 @@ public final class HvxClient {
 
     /** Once a frame, before the level draws. */
     public static void onFrameStart() {
+        ScreenHits.beginFrame();
         ScreenTextureManager.uploadAll();
         VmAudioPlayer.tick();
     }
@@ -187,6 +189,8 @@ public final class HvxClient {
             VmAudioPlayer.clear();
             ClientVmCache.clear();
             ScreenTracker.clear();
+            ScreenHits.clear();
+            DeskView.reset();
         });
     }
 }

@@ -32,9 +32,11 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * PC assembly and system configuration: drag parts into typed slots on the left, choose the
- * hypervisor, OS image and sharing on the right, and power the machine on. Everything sits on a
- * 4-px grid; both slot grids share one origin and an 18-px pitch.
+ * PC build + system config, split over two pages. "Motherboard" ({@link BoardView}) is the actual
+ * board: click a socket to install, swap or pull parts (with anims and sounds). "System" has the
+ * typed slot grid and inventory for drag-and-drop on the left, hypervisor / OS image / sharing on
+ * the right, plus the power controls. Racks only get the System page.
+ * Everything's on a 4px grid, both slot grids share one origin and an 18px pitch.
  */
 public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
     private static final int H = 236;
@@ -62,6 +64,13 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
     private UiKit.ChoiceButton<Integer> cores;
     private UiKit.ChoiceButton<Integer> ram;
     private UiKit.ChoiceButton<Integer> disk;
+    /** which page the PC screen opens on, remembered for the session. */
+    private static boolean lastBoardPage = true;
+    private boolean boardPage;
+    private BoardView board;
+    private final List<net.minecraft.client.gui.components.AbstractWidget> systemWidgets = new ArrayList<>();
+    /** left edge of the page tabs in the title bar (title gets clipped before it). */
+    private int tabsX;
 
     public ComputerScreen(ComputerMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
@@ -199,8 +208,54 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
         }
         addRenderableWidget(power);
         addRenderableWidget(focus);
+        if (!rack()) {
+            // everything above is System page stuff. the two page tabs go in the title bar
+            systemWidgets.clear();
+            for (var c : children()) if (c instanceof net.minecraft.client.gui.components.AbstractWidget w) systemWidgets.add(w);
+            if (board == null) {
+                board = new BoardView(menu, () -> info, () -> setPage(false));
+                boardPage = lastBoardPage;
+            }
+            Component sys = Component.translatable("hypervisorx.board.tab.system");
+            Component mb = Component.translatable("hypervisorx.board.tab.board");
+            int sw = font.width(sys) + 24;
+            int bw = font.width(mb) + 24;
+            int tx = leftPos + W - 7 - 62 - sw - bw - 3;
+            tabsX = tx;
+            addRenderableWidget(new UiKit.FlatButton(tx, topPos + 4, bw, 12, mb, () -> setPage(true)).icon(UiKit.Icon.CHIP)
+                    .selectedWhen(() -> boardPage));
+            addRenderableWidget(new UiKit.FlatButton(tx + bw + 3, topPos + 4, sw, 12, sys, () -> setPage(false)).icon(UiKit.Icon.GEAR)
+                    .selectedWhen(() -> !boardPage));
+            applyPage();
+        }
         S2C.HostInfo cached = ClientVmCache.hostInfo();
         if (cached != null && cached.pos().equals(menu.pos())) onHostInfo(cached);
+    }
+
+    private void setPage(boolean boardPage) {
+        this.boardPage = boardPage;
+        lastBoardPage = boardPage;
+        applyPage();
+    }
+
+    private void applyPage() {
+        menu.boardView = boardPage;
+        for (var w : systemWidgets) w.visible = !boardPage;
+        if (boardPage) setFocused(null);
+        else if (board != null) board.close();
+    }
+
+    /** for the automated test: which page is up, and flipping it. */
+    public boolean boardPage() {
+        return boardPage;
+    }
+
+    public BoardView board() {
+        return board;
+    }
+
+    public void showBoard(boolean show) {
+        if (!rack()) setPage(show);
     }
 
     private String backendLabel(String id) {
@@ -316,12 +371,21 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
     protected void renderBg(GuiGraphics g, float partialTick, int mouseX, int mouseY) {
         int x = leftPos;
         int y = topPos;
-        UiKit.window(g, font, x, y, W, H, rack() ? UiKit.Icon.SERVER : UiKit.Icon.CHIP, title,
-                rack() ? null : Component.translatable("hypervisorx.ui.subtitle"));
+        Component shownTitle = title;
+        if (!rack() && tabsX > 0) shownTitle = Component.literal(UiKit.clip(font, title.getString(), tabsX - (x + 22) - 6));
+        UiKit.window(g, font, x, y, W, H, rack() ? UiKit.Icon.SERVER : UiKit.Icon.CHIP, shownTitle, null);
         if (!rack()) {
             String state = stateOf(current());
             UiKit.pill(g, font, x + W - 7, y + 4, Component.translatable("hypervisorx.state." + state.toLowerCase(Locale.ROOT)).getString(),
                     stateColor(state));
+        }
+        if (boardPage && board != null) {
+            // board on the left (sized off the window height), build sheet on the right
+            int ph = H - 30;
+            int bw = Math.round(198f * (ph - 4) / 212f) + 4;
+            bw = Math.min(bw, W - 12 - 4 - 104);
+            board.render(g, font, x + 6, y + 24, bw, ph, x + 6 + bw + 4, W - 12 - bw - 4, mouseX, mouseY);
+            return;
         }
         // left: hardware + inventory
         UiKit.section(g, font, x + 6, y + 24, LEFT_W, 104, Component.translatable("hypervisorx.ui.hardware"));
@@ -461,6 +525,11 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
             target.setTextColor(used ? 0xE0E0E0 : 0x5B6474);
         }
         super.render(g, mouseX, mouseY, partialTick);
+        if (boardPage && board != null) {
+            board.renderPicker(g, font, mouseX, mouseY, width, height);
+            UiKit.renderOverlays(g, font, mouseX, mouseY);
+            return;
+        }
         renderTooltip(g, mouseX, mouseY);
         if (hoveredSlot != null && !hoveredSlot.hasItem() && hoveredSlot instanceof ComputerMenu.PartSlot ps) {
             UiKit.queueTip(Component.translatable(ps.type().translationKey()));
@@ -471,24 +540,40 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
         if (UiKit.popoverClicked(mx, my, button)) return true;
+        if (boardPage && board != null && board.mouseClicked(mx, my, button)) return true;
         return super.mouseClicked(mx, my, button);
+    }
+
+    @Override
+    public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
+        if (boardPage && board != null && board.mouseDragged(mx, my)) return true;
+        return super.mouseDragged(mx, my, button, dx, dy);
+    }
+
+    @Override
+    public boolean mouseReleased(double mx, double my, int button) {
+        if (boardPage && board != null && board.mouseReleased()) return true;
+        return super.mouseReleased(mx, my, button);
     }
 
     @Override
     public boolean mouseScrolled(double mx, double my, double dx, double dy) {
         if (UiKit.popoverScrolled(mx, my, dy)) return true;
+        if (boardPage && board != null && board.mouseScrolled(mx, my, dy)) return true;
         return super.mouseScrolled(mx, my, dx, dy);
     }
 
     @Override
     public void removed() {
         UiKit.closePopover();
+        if (board != null) board.close();
         super.removed();
     }
 
     @Override
     public boolean keyPressed(int key, int scancode, int modifiers) {
         if (UiKit.popoverKey(key)) return true;
+        if (boardPage && board != null && board.keyPressed(key)) return true;
         // don't let the inventory key close the screen while you're typing in a text field
         if ((name != null && name.isFocused()) || (target != null && target.isFocused()) || (trustName != null && trustName.isFocused())) {
             if (key == 256) return super.keyPressed(key, scancode, modifiers);

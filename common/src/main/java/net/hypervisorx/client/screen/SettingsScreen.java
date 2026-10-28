@@ -187,6 +187,12 @@ public class SettingsScreen extends Screen {
             client.save();
         });
         y += ROW;
+        choice(y, "focus_view", List.of(true, false), client.focusInWorld,
+                v -> Component.translatable("hypervisorx.settings.focus_view." + (v ? "world" : "full")).getString(), v -> {
+            client.focusInWorld = v;
+            client.save();
+        });
+        y += ROW;
         choice(y, "focus_zoom", List.of(true, false), client.focusZoomAnimation, this::onOff, v -> {
             client.focusZoomAnimation = v;
             client.save();

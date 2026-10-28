@@ -32,6 +32,8 @@ public final class HvxClientConfig {
     public int pipCorner = 0;
     public float pipScale = 0.30f;
     public boolean focusZoomAnimation = true;
+    /** Using a screen keeps you in the world (camera sits at the monitor) instead of going full-window. */
+    public boolean focusInWorld = true;
 
     public static HvxClientConfig get() {
         HvxClientConfig c = instance;

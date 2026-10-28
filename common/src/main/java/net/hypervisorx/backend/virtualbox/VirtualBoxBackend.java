@@ -121,6 +121,52 @@ public final class VirtualBoxBackend implements HypervisorBackend {
         }
     }
 
+    /**
+     * "terminated unexpectedly" tells you nothing, VirtualBox's own logs usually do. Most common one right
+     * after installing VirtualBox: driver hardening blocks the VM process until Windows restarts.
+     */
+    static String explainStartFailure(VmLaunchSpec spec, String name, String raw) {
+        Path logs = spec.vmDir().resolve(name).resolve("Logs");
+        try {
+            Path hardening = logs.resolve("VBoxHardening.log");
+            if (Files.isRegularFile(hardening)) {
+                String h = Files.readString(hardening, java.nio.charset.StandardCharsets.ISO_8859_1);
+                if (h.contains("SystemExtendedHandleInformation failed: 0xc0000004") || h.contains("querying handles")) {
+                    // the driver check lists every open handle on the system, so one app leaking millions of them breaks it
+                    String culprit = topHandleProcess();
+                    return "VirtualBox could not start: Windows has too many open handles for its driver check"
+                            + (culprit != null ? " (" + culprit + " holds the most; close it)" : "")
+                            + ". Closing the program that leaks handles, or restarting Windows, fixes it. Details: " + hardening;
+                }
+                if (h.contains("VBoxDrvStub error") || h.contains("supR3HardenedWinReSpawn")) {
+                    return "VirtualBox could not start its VM process (driver hardening check failed). Restart Windows once after"
+                            + " installing or updating VirtualBox; if it persists, reinstall VirtualBox. Details: " + hardening;
+                }
+            }
+            Path vbox = logs.resolve("VBox.log");
+            if (Files.isRegularFile(vbox)) {
+                for (String l : Files.readAllLines(vbox, java.nio.charset.StandardCharsets.ISO_8859_1).reversed()) {
+                    if (l.contains("VERR_") || l.contains("ERROR")) return "VirtualBox failed to start the VM: " + l.strip();
+                }
+            }
+        } catch (IOException | RuntimeException ignored) {
+        }
+        return raw;
+    }
+
+    /** "name (handles)" of whatever process holds the most handles, or null. Windows only. */
+    private static String topHandleProcess() {
+        if (!Processes.WINDOWS) return null;
+        try {
+            Processes.Result r = Processes.run(20, "powershell", "-NoProfile", "-Command",
+                    "Get-Process | Sort-Object Handles -Descending | Select-Object -First 1 | ForEach-Object { $_.ProcessName + '.exe, PID ' + $_.Id + ', ' + $_.Handles + ' handles' }");
+            String out = r.output().strip();
+            return r.ok() && !out.isEmpty() ? out : null;
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
     private static boolean manageQuiet(Path manage, String... args) {
         try {
             manage(manage, args);
@@ -227,7 +273,11 @@ public final class VirtualBoxBackend implements HypervisorBackend {
             if (!saved && !manageQuiet(manage, "modifyvm", name, "--nat-localhostreachable1", "off")) {
                 manageQuiet(manage, "modifyvm", name, "--natlocalhostreachable1", "off");
             }
-            manage(manage, "startvm", name, "--type", "headless");
+            try {
+                manage(manage, "startvm", name, "--type", "headless");
+            } catch (BackendException e) {
+                throw new BackendException(explainStartFailure(spec, name, e.getMessage()), e);
+            }
             VboxWebService.ensure(webSrv, manage, ctx.virtualBoxWebPort(), ctx.allowVboxAuthChange(), ctx.dataRoot().resolve("logs"));
             VirtualBoxInstance instance = new VirtualBoxInstance(spec, manage, ctx.virtualBoxWebPort(), gpioPort);
             instance.connect();

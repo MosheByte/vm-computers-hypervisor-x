@@ -98,10 +98,23 @@ only the embedded MicroVM was measured for this release. Singleplayer uses an un
 - **Wi-Fi remote desktop**: sneak-use a computer that has a Wi-Fi card to pair; the laptop then
   shows and controls that machine (configurable range).
 
-### Focus mode
-Right-click a screen or press **V** while looking at it. The VM fills the window, gets absolute
-mouse input and *every* key including Esc and Tab. Press **Right Ctrl** (rebindable) to get back.
-The top bar has power, reset, Ctrl+Alt+Del and snapshot buttons, the FPS and the laptop battery.
+### Sitting at the computer
+Right-click a screen or press **V** while looking at it. You stay in the world: the camera glides
+in front of the monitor and locks there, the room stays visible around it, and the mouse moves the
+guest's pointer on the in-world screen itself (flat, curved, spanned and video-wall screens alike).
+The VM gets *every* key including Esc and Tab. Press **Right Ctrl** (rebindable) to stand up again.
+The floating top bar has power, reset, Ctrl+Alt+Del and snapshot buttons, the FPS, the laptop
+battery and a switch to the classic full-window view (also the default in *Settings → Focus*).
+
+### Motherboard assembly
+Right-click a computer to open its motherboard: a detailed board (an ATX gaming board for the
+tower, a green 1998 Socket 7 board for the retro PC). Click a socket to see the matching parts in
+your inventory and install, swap or remove them (right-click removes). Every part has its own
+animation and sound: the CPU drops in and the load plate and lever close, memory slides down until
+both latches click, graphics and expansion cards seat into their slots, M.2 drives are screwed
+down and USB sticks plug into the rear I/O. GPU fans spin and the RGB zones breathe while the
+machine runs, the Q-LEDs show which required part is missing, and a finished build answers with
+the classic single POST beep. The *System* tab keeps the slot grid for drag-and-drop.
 
 ### OrbitTech Store 2.0
 Craft the tablet (iron, glass pane, redstone, copper) and use it outside: browse categories,
@@ -272,9 +285,11 @@ tools/                        asset, language and font generators
 | | |
 |---|---|
 | ![Tiny Core Linux on VMware Workstation in focus mode](docs/screenshots/hvx-vmware-focus.png) | ![the /hvx demo showroom](docs/screenshots/hvx-closeup.png) |
-| ![PC assembly and VM settings](docs/screenshots/hvx-computer.png) | ![OS library and hypervisor health](docs/screenshots/hvx-library.png) |
+| ![the retro PC motherboard: Socket 7, AGP, PCI and IDE in pixel-art 3D](docs/screenshots/hvx-computer.png) | ![OS library and hypervisor health](docs/screenshots/hvx-library.png) |
 | ![OrbitTech store](docs/screenshots/hvx-store.png) | ![desk with retro PC, speakers, RGB keyboard and the glass tower](docs/screenshots/hvx-desk.png) |
-| ![embedded Linux in focus mode](docs/screenshots/hvx-focus.png) | ![tempered-glass tower interior](docs/screenshots/hvx-tower.png) |
+| ![sitting at the computer: the camera locks in front of the monitor and the world stays visible](docs/screenshots/hvx-focus.png) | ![tempered-glass tower interior](docs/screenshots/hvx-tower.png) |
 | ![the showroom at night: emissive RGB, lit displays](docs/screenshots/hvx-night-world.png) | ![RGB tower and curved ultrawide at night](docs/screenshots/hvx-night-tower.png) |
-| ![CRT, rugged laptop, delivery crate and drop pod](docs/screenshots/hvx-retro-corner.png) | ![gaming tower assembly screen](docs/screenshots/hvx-computer-tower.png) |
+| ![CRT, rugged laptop, delivery crate and drop pod](docs/screenshots/hvx-retro-corner.png) | ![gaming tower motherboard: memory and graphics card standing in their slots](docs/screenshots/hvx-computer-tower.png) |
 | ![settings](docs/screenshots/hvx-settings.png) | ![in-game file browser](docs/screenshots/hvx-files.png) |
+| ![click a socket: matching parts from your inventory](docs/screenshots/hvx-board-picker.png) | ![drag to turn the board](docs/screenshots/hvx-board-turned.png) |
+| ![Windows 11 installing unattended on VMware, seen from the desk](docs/screenshots/hvx-win11-install.png) | ![System page: slot grid, engine, OS image and power](docs/screenshots/hvx-computer-system.png) |
