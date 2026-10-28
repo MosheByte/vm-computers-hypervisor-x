@@ -25,6 +25,8 @@ public final class HvxConfig {
     private static volatile HvxConfig instance;
     private static final List<String> KNOWN_BACKENDS = List.of("vmware", "qemu", "virtualbox", "embedded", "hostcapture");
 
+    /** Schema version. Older files get the safer 1.2 defaults for anything still on the old defaults. */
+    public int configVersion = 2;
     /** Order "auto" tries the backends in. */
     public List<String> backendPreference = new ArrayList<>(List.of("vmware", "qemu", "virtualbox", "embedded"));
     /** Executable or install folder per backend id. Empty = auto-detect. */
@@ -93,7 +95,9 @@ public final class HvxConfig {
         HvxConfig c = null;
         if (Files.exists(f)) {
             try {
-                c = GSON.fromJson(Files.readString(f, StandardCharsets.UTF_8), HvxConfig.class);
+                String json = Files.readString(f, StandardCharsets.UTF_8);
+                c = GSON.fromJson(json, HvxConfig.class);
+                if (c != null && !json.contains("\"configVersion\"")) c.configVersion = 1;
             } catch (IOException | JsonParseException e) {
                 HyperVisorX.LOG.error("Invalid {}, using defaults: {}", f, e.getMessage());
             }
@@ -144,7 +148,19 @@ public final class HvxConfig {
         return c;
     }
 
+    /** Upgrades a pre-1.2 file: anything still on the old (greedy, wide open) defaults moves to the new ones. */
+    private void migrate() {
+        if (configVersion >= 2) return;
+        if (maxCoresPerVm == 16) maxCoresPerVm = 8;
+        if (maxRamMbPerVm == 65536) maxRamMbPerVm = 16384;
+        if (maxHostRamPercent == 75) maxHostRamPercent = 60;
+        if (maxRunningVms == 8) maxRunningVms = 6;
+        if (minPermissionForHostBackends == 0) minPermissionForHostBackends = 2;
+        configVersion = 2;
+    }
+
     public void sanitize() {
+        migrate();
         if (backendPreference == null || backendPreference.isEmpty()) {
             backendPreference = new ArrayList<>(List.of("vmware", "qemu", "virtualbox", "embedded"));
         }

@@ -22,6 +22,37 @@ server.** Renamed to *HyperVisor X* (an unofficial successor to Delta2Force's VM
 - Downloads are pinned to SHA-256 (Tiny Core 16.2, FreeDOS 1.4, ReactOS via GitHub digests, embedded
   kernels from a pinned commit); redirects never downgrade https to http.
 
+## Art & interface (design review, 58 findings)
+- One texel density for every block, part and effect texture (2 px per unit); atlases get mipmap-safe
+  gutters and every model has its own break-particle texture.
+- RGB, fans, keyboard backlight, pump LCD and rack LEDs are emissive (NeoForge model data, a Fabric
+  renderer material on Fabric), so a gaming setup glows at night. Displays give off light while their
+  machine runs; keyboards and mice have a faint glow.
+- Gaming tower: readable interior values, real tempered glass drawn by the renderer (the body is no
+  longer in the translucent layer), hex-perforated top, square 7-blade fans that spin smoothly.
+- Server rack: roof, varied 1U/2U/3U gear (storage, servers, switch with port LEDs, patch panel) and
+  four LED timings so neighbouring racks never blink in lockstep.
+- New mouse, keyboard underglow, single bookshelf speaker per block (crafted as a pair), rugged laptop
+  in Toughbook graphite with a 1-unit bezel, drop pod with heat shield and fins, crate without
+  z-fighting, monitor arms with links and VESA plates that meet the panels.
+- Code-drawn displays (curved ultrawide, arms) are no longer black: proper shell colours, an
+  emissive light bar, end bezels; the ultrawide is a desk-sized 2.0 x 0.86 blocks and fills its
+  wings with a dimmed copy of the picture. CRTs get scanlines, vignette and a power LED; distant
+  screens keep the last frame dimmed instead of a boot splash. The HDMI link is a visible cable.
+- 16x16 item icons (no baked text, distinct RAM tiers), a redrawn GUI glyph set and a pixel logo.
+- Screens: field labels, dimmed placeholders, dropdown lists, kit tooltips, soft shadows, correct
+  small-text maths at every GUI scale, scrollbars, store stepper and empty states, a slot grid on one
+  pitch with a turning render of the machine, Settings and File Browser rebuilt (fit 720p), a
+  floating focus toolbar with sharp upscaling, and right-to-left layout for Hebrew.
+
+## Input & streaming
+- VMware guests get an absolute USB pointer, so the cursor follows the mouse in guests without
+  VMware Tools; in focus mode only the guest's cursor is shown. (Tiny Core and other guests whose
+  X server only has a relative mouse still move their cursor relatively.)
+- VNC update requests are pipelined: VMware streams at about 40 FPS instead of about 19.
+- Smooth, eased scrolling in every list (store, library, settings, file browser); touchpad and
+  smooth-wheel deltas no longer count as full notches in lists, dropdowns or the guest.
+
 ## Lifecycle & data
 - VM disks live in the world save (`<world>/hypervisorx/vms/`); deleting a VM removes its files even
   when it is off; orphaned folders are cleaned at start; `/hvx gc <days> [confirm]`.

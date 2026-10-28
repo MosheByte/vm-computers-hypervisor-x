@@ -3,7 +3,7 @@
  "textures": {
   "atlas": "hypervisorx:block/model/part/cooler",
   "lcd": "hypervisorx:block/fx/aio_lcd",
-  "particle": "hypervisorx:block/model/part/cooler"
+  "particle": "hypervisorx:block/model/part/cooler_p"
  },
  "elements": [
   {
@@ -21,48 +21,76 @@
     "north": {
      "texture": "#atlas",
      "uv": [
-      0.0,
-      0.0,
-      2.5,
-      6.0
+      6.0,
+      1.0,
+      7.5,
+      4.0
      ]
     },
     "south": {
      "texture": "#atlas",
      "uv": [
-      2.5,
-      0.0,
-      5.0,
-      6.0
+      9.5,
+      1.0,
+      11.0,
+      4.0
      ]
     },
     "east": {
-     "texture": "#lcd",
+     "texture": "#atlas",
      "uv": [
-      0,
-      0,
-      16,
-      16
+      1.0,
+      1.0,
+      4.0,
+      4.0
      ]
     },
     "up": {
      "texture": "#atlas",
      "uv": [
-      5.0,
-      0.0,
-      7.5,
-      6.0
+      13.0,
+      1.0,
+      14.5,
+      4.0
      ]
     },
     "down": {
      "texture": "#atlas",
      "uv": [
-      7.5,
-      0.0,
-      10.0,
-      6.0
+      1.0,
+      6.0,
+      2.5,
+      9.0
      ]
     }
+   }
+  },
+  {
+   "from": [
+    5.6,
+    9.75,
+    7.75
+   ],
+   "to": [
+    5.65,
+    12.45,
+    10.45
+   ],
+   "faces": {
+    "east": {
+     "texture": "#lcd",
+     "uv": [
+      0,
+      0,
+      12,
+      12
+     ]
+    }
+   },
+   "shade": false,
+   "neoforge_data": {
+    "block_light": 15,
+    "sky_light": 15
    }
   },
   {
@@ -80,55 +108,55 @@
     "north": {
      "texture": "#atlas",
      "uv": [
-      10.0,
-      0.0,
-      11.0,
-      3.0
+      4.5,
+      6.0,
+      5.0,
+      7.5
      ]
     },
     "south": {
      "texture": "#atlas",
      "uv": [
-      11.0,
-      0.0,
-      12.0,
-      3.0
+      7.0,
+      6.0,
+      7.5,
+      7.5
      ]
     },
     "east": {
      "texture": "#atlas",
      "uv": [
-      12.0,
-      0.0,
-      13.0,
-      3.0
+      9.5,
+      6.0,
+      10.0,
+      7.5
      ]
     },
     "west": {
      "texture": "#atlas",
      "uv": [
-      13.0,
-      0.0,
-      14.0,
-      3.0
+      12.0,
+      6.0,
+      12.5,
+      7.5
      ]
     },
     "up": {
      "texture": "#atlas",
      "uv": [
-      2.0,
-      6.0,
-      3.0,
-      7.0
+      8.5,
+      11.0,
+      9.0,
+      11.5
      ]
     },
     "down": {
      "texture": "#atlas",
      "uv": [
-      3.0,
-      6.0,
-      4.0,
-      7.0
+      11.0,
+      11.0,
+      11.5,
+      11.5
      ]
     }
    }
@@ -148,55 +176,55 @@
     "north": {
      "texture": "#atlas",
      "uv": [
-      14.0,
-      0.0,
+      14.5,
+      6.0,
       15.0,
-      3.0
+      7.5
      ]
     },
     "south": {
      "texture": "#atlas",
      "uv": [
-      15.0,
-      0.0,
-      16.0,
-      3.0
+      1.0,
+      11.0,
+      1.5,
+      12.5
      ]
     },
     "east": {
      "texture": "#atlas",
      "uv": [
-      0.0,
-      6.0,
-      1.0,
-      9.0
+      3.5,
+      11.0,
+      4.0,
+      12.5
      ]
     },
     "west": {
      "texture": "#atlas",
      "uv": [
-      1.0,
       6.0,
-      2.0,
-      9.0
+      11.0,
+      6.5,
+      12.5
      ]
     },
     "up": {
      "texture": "#atlas",
      "uv": [
-      4.0,
-      6.0,
-      5.0,
-      7.0
+      13.5,
+      11.0,
+      14.0,
+      11.5
      ]
     },
     "down": {
      "texture": "#atlas",
      "uv": [
-      5.0,
-      6.0,
-      6.0,
-      7.0
+      1.0,
+      14.5,
+      1.5,
+      15.0
      ]
     }
    }

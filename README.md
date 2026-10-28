@@ -271,7 +271,10 @@ tools/                        asset, language and font generators
 ## Screenshots
 | | |
 |---|---|
-| ![Tiny Core Linux running on VMware Workstation, shown on the curved ultrawide](docs/screenshots/hvx-vmware-world.png) | ![VMware guest in focus mode](docs/screenshots/hvx-vmware-focus.png) |
+| ![Tiny Core Linux on VMware Workstation in focus mode](docs/screenshots/hvx-vmware-focus.png) | ![the /hvx demo showroom](docs/screenshots/hvx-closeup.png) |
 | ![PC assembly and VM settings](docs/screenshots/hvx-computer.png) | ![OS library and hypervisor health](docs/screenshots/hvx-library.png) |
 | ![OrbitTech store](docs/screenshots/hvx-store.png) | ![desk with retro PC, speakers, RGB keyboard and the glass tower](docs/screenshots/hvx-desk.png) |
 | ![embedded Linux in focus mode](docs/screenshots/hvx-focus.png) | ![tempered-glass tower interior](docs/screenshots/hvx-tower.png) |
+| ![the showroom at night: emissive RGB, lit displays](docs/screenshots/hvx-night-world.png) | ![RGB tower and curved ultrawide at night](docs/screenshots/hvx-night-tower.png) |
+| ![CRT, rugged laptop, delivery crate and drop pod](docs/screenshots/hvx-retro-corner.png) | ![gaming tower assembly screen](docs/screenshots/hvx-computer-tower.png) |
+| ![settings](docs/screenshots/hvx-settings.png) | ![in-game file browser](docs/screenshots/hvx-files.png) |

@@ -98,26 +98,59 @@ def font(size):
 # --------------------------------------------------------------------------------------------- screens & logo
 
 def screen_no_signal():
+    """No text, the renderer draws the translated "No signal" on top."""
     w, h = 256, 144
     img = Image.new("RGBA", (w, h), hexc("05070b"))
     d = ImageDraw.Draw(img)
     for y in range(0, h, 2):
         d.line((0, y, w, y), fill=(14, 20, 30, 255))
-    d.text((w // 2, 54), "NO SIGNAL", fill=hexc("38c6ff"), font=font(26), anchor="mm")
-    d.text((w // 2, 86), "link with an HDMI cable", fill=hexc("8a94a6"), font=font(11), anchor="mm")
-    d.text((w // 2, 128), "HyperVisor X", fill=hexc("b46cff"), font=font(10), anchor="mm")
+    # soft vignette and a thin accent line at the bottom
+    for i in range(24):
+        a = int(70 * (1 - i / 24))
+        d.rectangle((i, i, w - 1 - i, h - 1 - i), outline=(0, 0, 0, 255) if a > 60 else (3, 4, 7, 255))
+    d.line((w // 2 - 30, h - 18, w // 2 + 30, h - 18), fill=hexc("2a3a55"))
     return img
 
 
 def screen_boot():
+    """Boot splash with no text (rings + mark), the "Booting..." label gets drawn at runtime."""
     w, h = 256, 144
     img = Image.new("RGBA", (w, h), hexc("070a10"))
     d = ImageDraw.Draw(img)
     cx, cy = w // 2, 62
     for r in range(28, 6, -4):
         d.ellipse((cx - r, cy - r, cx + r, cy + r), outline=rgb_at(r / 40.0, 0.7, 0.9))
-    d.text((cx, cy), "HVX", fill=hexc("e8eef8"), font=font(16), anchor="mm")
-    d.text((cx, 112), "HyperVisor X", fill=hexc("8a94a6"), font=font(11), anchor="mm")
+    d.ellipse((cx - 5, cy - 5, cx + 5, cy + 5), fill=hexc("e8eef8"))
+    return img
+
+
+def crt_mask():
+    """64x48 overlay for the CRT: scanlines, corner vignette, rounded corners and a glass highlight."""
+    w, h = 64, 48
+    img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    px = img.load()
+    r = 4
+    for y in range(h):
+        for x in range(w):
+            a = 0.0
+            if y % 2:
+                a = 0.12
+            dx = abs(x + 0.5 - w / 2) / (w / 2)
+            dy = abs(y + 0.5 - h / 2) / (h / 2)
+            v = max(0.0, (dx * dx + dy * dy) - 0.55) / 1.45
+            a = 1 - (1 - a) * (1 - min(0.35, v * 0.35 / 0.6))
+            # rounded corners
+            cx = min(x, w - 1 - x)
+            cy = min(y, h - 1 - y)
+            if cx < r and cy < r and (r - cx - 0.5) ** 2 + (r - cy - 0.5) ** 2 > r * r:
+                a = 1.0
+            px[x, y] = (0, 0, 0, int(round(a * 255)))
+    # 2-px diagonal highlight in the upper left, 10 % white
+    for k in range(18):
+        for t in range(2):
+            x, y = 6 + k, 4 + k // 2 + t
+            if 0 <= x < w and 0 <= y < h:
+                px[x, y] = (255, 255, 255, 26)
     return img
 
 
@@ -136,11 +169,25 @@ def logo():
 
 # --------------------------------------------------------------------------------------------- models
 
-def facing_states(name, powered=False):
+def facing_states(name, powered=False, lit=False, on_models=None):
     rot = {"north": 0, "east": 90, "south": 180, "west": 270}
     variants = {}
     for f, y in rot.items():
-        if powered:
+        if powered and on_models:
+            for p in ("false", "true"):
+                if p == "true":
+                    # a few LED variants, the game picks one per block pos so racks don't all blink in sync
+                    v = [dict({"model": f"{MOD}:block/{mm}"}, **({"y": y} if y else {})) for mm in on_models]
+                else:
+                    v = dict({"model": f"{MOD}:block/{name}"}, **({"y": y} if y else {}))
+                variants[f"facing={f},powered={p}"] = v
+        elif lit:
+            for l in ("false", "true"):
+                v = {"model": f"{MOD}:block/{name}"}
+                if y:
+                    v["y"] = y
+                variants[f"facing={f},lit={l}"] = v
+        elif powered:
             for p in ("false", "true"):
                 model = f"{MOD}:block/{name}" + ("_on" if p == "true" else "")
                 v = {"model": model}
@@ -181,16 +228,20 @@ def models():
             if os.path.exists(p):
                 os.remove(p)
     gen_models.build(ASSETS)
-    for name in ("retro_pc", "gaming_tower", "server_rack"):
+    for name in ("retro_pc", "gaming_tower"):
         facing_states(name, powered=True)
         block_item(name)
-    for name in ("monitor", "crt_monitor", "video_wall_panel",
-                 "pro_laptop", "rugged_laptop", "mechanical_keyboard", "gaming_mouse", "desktop_speakers"):
+    facing_states("server_rack", powered=True, on_models=[f"server_rack_on_{v}" for v in range(len(gen_models.RACK_FRAMES))])
+    block_item("server_rack")
+    for name in ("video_wall_panel", "pro_laptop", "rugged_laptop", "mechanical_keyboard", "gaming_mouse", "desktop_speakers"):
         facing_states(name)
+        block_item(name)
+    for name in ("monitor", "crt_monitor"):
+        facing_states(name, lit=True)
         block_item(name)
     # the world renderer draws the panels for these, but the items need them baked into the model
     for name in ("curved_monitor", "dual_monitor_arm", "triple_monitor_arm"):
-        facing_states(name)
+        facing_states(name, lit=True)
         block_item(name, name + "_item")
     simple_state("delivery_crate")
     block_item("delivery_crate")
@@ -203,6 +254,7 @@ def textures():
     save_png(img, "block", "screen_shell.png")
     save_png(screen_no_signal(), "screen", "no_signal.png")
     save_png(screen_boot(), "screen", "boot.png")
+    save_png(crt_mask(), "screen", "crt_mask.png")
     save_png(Image.new("RGBA", (16, 16), (255, 255, 255, 255)), "screen", "white.png")
     for name, fn in gen_icons.ITEMS.items():
         save_png(fn().img, "item", name + ".png")
@@ -211,7 +263,8 @@ def textures():
         save_png(gen_icons.ghost(kind).img, "gui", "slot_" + kind + ".png")
     atlas, _ = gen_icons.icon_atlas()
     save_png(atlas.img, "gui", "icons.png")
-    lg = logo()
+    lg = gen_icons.logo() if hasattr(gen_icons, "logo") else logo()
+    lg = getattr(lg, "img", lg)
     lg.save(path(ROOT, "hypervisorx_logo.png"))
 
 
@@ -301,7 +354,8 @@ def recipes():
     # peripherals
     shaped("mechanical_keyboard", ["BBB", "SRS"], {"B": "minecraft:stone_button", "S": "minecraft:smooth_stone_slab", "R": R})
     shaped("gaming_mouse", ["B", "S"], {"B": "minecraft:stone_button", "S": "minecraft:smooth_stone_slab"})
-    shaped("desktop_speakers", ["N N", "IRI"], {"N": "minecraft:note_block", "I": I, "R": R})
+    # one speaker per block now: the recipe makes a pair
+    shaped("desktop_speakers", ["N N", "IRI"], {"N": "minecraft:note_block", "I": I, "R": R}, count=2)
 
 
 def tags():

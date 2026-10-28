@@ -38,8 +38,8 @@ public final class HvxBlocks {
     public static final Supplier<LaptopBlock> PRO_LAPTOP = register("pro_laptop", () -> new LaptopBlock(LaptopBlock.defaultProperties().sound(SoundType.METAL), LaptopModel.PRO));
     public static final Supplier<LaptopBlock> RUGGED_LAPTOP = register("rugged_laptop", () -> new LaptopBlock(LaptopBlock.defaultProperties().sound(SoundType.METAL), LaptopModel.RUGGED));
 
-    public static final Supplier<PeripheralBlock> KEYBOARD = register("mechanical_keyboard", () -> new PeripheralBlock(small(), PeripheralBlock.Kind.KEYBOARD));
-    public static final Supplier<PeripheralBlock> MOUSE = register("gaming_mouse", () -> new PeripheralBlock(small(), PeripheralBlock.Kind.MOUSE));
+    public static final Supplier<PeripheralBlock> KEYBOARD = register("mechanical_keyboard", () -> new PeripheralBlock(rgb(), PeripheralBlock.Kind.KEYBOARD));
+    public static final Supplier<PeripheralBlock> MOUSE = register("gaming_mouse", () -> new PeripheralBlock(rgb(), PeripheralBlock.Kind.MOUSE));
     public static final Supplier<PeripheralBlock> SPEAKERS = register("desktop_speakers", () -> new PeripheralBlock(small(), PeripheralBlock.Kind.SPEAKERS));
 
     public static final Supplier<DeliveryCrateBlock> DELIVERY_CRATE = register("delivery_crate",
@@ -57,11 +57,17 @@ public final class HvxBlocks {
     }
 
     private static BlockBehaviour.Properties display() {
-        return BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_BLACK).strength(1.5f, 4.0f).sound(SoundType.METAL).noOcclusion();
+        return BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_BLACK).strength(1.5f, 4.0f).sound(SoundType.METAL).noOcclusion()
+                .lightLevel(s -> s.hasProperty(BlockStateProperties.LIT) && s.getValue(BlockStateProperties.LIT) ? 6 : 0);
     }
 
     private static BlockBehaviour.Properties small() {
         return BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_BLACK).strength(0.5f).sound(SoundType.STONE).noOcclusion();
+    }
+
+    /** RGB peripherals glow a little since the lighting's always on. */
+    private static BlockBehaviour.Properties rgb() {
+        return small().lightLevel(s -> 3);
     }
 
     private static <T extends Block> Supplier<T> register(String name, Supplier<T> factory) {

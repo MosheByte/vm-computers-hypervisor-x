@@ -96,6 +96,15 @@ public abstract class DisplayBlockEntity extends BlockEntity {
             displayedVm = vm;
             sync();
         }
+        BlockState state = getBlockState();
+        if (state.hasProperty(net.minecraft.world.level.block.state.properties.BlockStateProperties.LIT)) {
+            net.hypervisorx.vm.VmManager m = net.hypervisorx.vm.VmManager.get();
+            net.hypervisorx.vm.VmSession s = m == null ? null : m.session(vm);
+            boolean lit = s != null && s.state() == net.hypervisorx.vm.VmSession.State.RUNNING;
+            if (state.getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.LIT) != lit) {
+                level.setBlock(worldPosition, state.setValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.LIT, lit), Block.UPDATE_ALL);
+            }
+        }
     }
 
     public static void serverTick(Level level, BlockPos pos, BlockState state, DisplayBlockEntity be) {

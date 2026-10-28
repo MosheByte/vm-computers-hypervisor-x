@@ -25,7 +25,6 @@ public class SupplyPodRenderer extends EntityRenderer<SupplyPodEntity> {
         pose.pushPose();
         float spin = entity.landed() ? 0 : (entity.tickCount + partialTick) * 6f;
         pose.mulPose(Axis.YP.rotationDegrees(Mth.wrapDegrees(spin)));
-        pose.scale(1.4f, 1.4f, 1.4f);
         pose.translate(-0.5, 0, -0.5);
         Minecraft.getInstance().getBlockRenderer().renderSingleBlock(HvxBlocks.SUPPLY_POD.get().defaultBlockState(), pose, buffers,
                 light, OverlayTexture.NO_OVERLAY);

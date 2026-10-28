@@ -1,17 +1,32 @@
 {
   "variants": {
-    "facing=north": {
+    "facing=north,lit=false": {
       "model": "hypervisorx:block/curved_monitor"
     },
-    "facing=east": {
+    "facing=north,lit=true": {
+      "model": "hypervisorx:block/curved_monitor"
+    },
+    "facing=east,lit=false": {
       "model": "hypervisorx:block/curved_monitor",
       "y": 90
     },
-    "facing=south": {
+    "facing=east,lit=true": {
+      "model": "hypervisorx:block/curved_monitor",
+      "y": 90
+    },
+    "facing=south,lit=false": {
       "model": "hypervisorx:block/curved_monitor",
       "y": 180
     },
-    "facing=west": {
+    "facing=south,lit=true": {
+      "model": "hypervisorx:block/curved_monitor",
+      "y": 180
+    },
+    "facing=west,lit=false": {
+      "model": "hypervisorx:block/curved_monitor",
+      "y": 270
+    },
+    "facing=west,lit=true": {
       "model": "hypervisorx:block/curved_monitor",
       "y": 270
     }

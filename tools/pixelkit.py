@@ -184,6 +184,17 @@ class Canvas:
         self.img.alpha_composite(other.img if isinstance(other, Canvas) else other, (x, y))
         self.px = self.img.load()
 
+    def paint(self, rows, palette, x=0, y=0):
+        """Draws a hand-drawn pixel grid: one string per row, one palette char per pixel.
+
+        '.' leaves the pixel alone, anything else gets looked up in `palette` (a char -> RGBA
+        dict). Handy for small sprites you'd rather draw pixel by pixel than build from primitives.
+        """
+        for gy, row in enumerate(rows):
+            for gx, ch in enumerate(row):
+                if ch != ".":
+                    self.set(x + gx, y + gy, palette[ch])
+
 
 def text_width(s, font=None):
     font = font or FONT_3x5

@@ -26,7 +26,14 @@ public class MonitorRenderer implements BlockEntityRenderer<MonitorBlockEntity>,
     private static final int ACCENT_COLOR = 0xFF38C6FF;
     private static final int FULL_BRIGHT = 0xF000F0;
 
+    private static final net.minecraft.resources.ResourceLocation CRT_MASK = net.hypervisorx.HyperVisorX.id("textures/screen/crt_mask.png");
+
     public MonitorRenderer(BlockEntityRendererProvider.Context ctx) {
+    }
+
+    private static boolean running(UUID vm) {
+        net.hypervisorx.network.S2C.VmStatus s = net.hypervisorx.client.ClientVmCache.get(vm);
+        return s != null && s.state().equals("RUNNING");
     }
 
     @Override
@@ -39,22 +46,53 @@ public class MonitorRenderer implements BlockEntityRenderer<MonitorBlockEntity>,
         ScreenDraw.faceNorth(pose, facing);
         MonitorType type = be.type();
         switch (type) {
-            case FLAT -> ScreenDraw.screen(pose, buffers, vm, be.getBlockPos(), 15.5f * PX, 3.5f * PX, 0.5f * PX, 12f * PX, 7f * PX - 0.002f,
-                    part0, part0 + partW);
-            case CRT -> ScreenDraw.screen(pose, buffers, vm, be.getBlockPos(), 13.5f * PX, 2.5f * PX, 2.5f * PX, 11f * PX, 2f * PX - 0.002f,
-                    part0, part0 + partW);
+            case FLAT -> {
+                ScreenDraw.screen(pose, buffers, vm, be.getBlockPos(), 15.5f * PX, 3.5f * PX, 0.5f * PX, 12f * PX, 7f * PX - 0.002f,
+                        part0, part0 + partW);
+                // power LED in the chin: lit while the linked machine runs
+                if (running(vm)) ScreenDraw.glow(pose, buffers, 7.5f * PX, 3.05f * PX, 7f * PX - 0.004f, 8f * PX, 3.45f * PX, 7f * PX - 0.001f, 0xFF38C6FF);
+            }
+            case CRT -> {
+                // inside the inner bevel (x 2.9..13.1, y 2.9..10.6) so the bevel doesn't hide the picture's edges
+                ScreenDraw.screen(pose, buffers, vm, be.getBlockPos(), 13.1f * PX, 2.9f * PX, 2.9f * PX, 10.6f * PX, 2f * PX - 0.002f,
+                        part0, part0 + partW);
+                // scanlines, vignette and that curved-glass shine a real tube has
+                ScreenDraw.overlay(pose, buffers, CRT_MASK, 13.1f * PX, 2.9f * PX, 2.9f * PX, 10.6f * PX, 2f * PX - 0.003f, 0xFFFFFFFF,
+                        FULL_BRIGHT);
+                if (running(vm)) ScreenDraw.glow(pose, buffers, 4.0f * PX, 1.05f * PX, 1.5f * PX - 0.003f, 4.5f * PX, 1.45f * PX, 1.5f * PX - 0.001f, 0xFF4DFF88);
+            }
             case ULTRAWIDE -> curved(be, pose, buffers, vm, light, part0, partW);
             case DUAL_ARM, TRIPLE_ARM -> arm(be, pose, buffers, vm, light, type.panels(), part0, partW);
         }
+        hdmi(be, facing, type, pose, buffers, light);
         pose.popPose();
+    }
+
+    /** Draws the HDMI link as an actual cable from the back of the stand to the linked computer (up to 16 blocks away). */
+    private static void hdmi(MonitorBlockEntity be, Direction facing, MonitorType type, PoseStack pose, MultiBufferSource buffers, int light) {
+        net.minecraft.core.BlockPos host = be.linkHost();
+        net.minecraft.core.BlockPos pos = be.getBlockPos();
+        if (host == null || host.equals(pos) || host.distSqr(pos) > 16 * 16) return;
+        org.joml.Vector3f end = new org.joml.Vector3f(host.getX() - pos.getX(), host.getY() - pos.getY() + 0.2f, host.getZ() - pos.getZ());
+        // convert into the north-facing model space everything else in this pose uses
+        int modelY = ((int) facing.toYRot() + 180) % 360;
+        end.rotateY((float) Math.toRadians(modelY)).add(0.5f, 0, 0.5f);
+        float startZ = switch (type) {
+            case FLAT -> 10.4f;
+            case CRT -> 14.6f;
+            case ULTRAWIDE -> 10.2f;
+            default -> 11.2f;
+        } * PX;
+        ScreenDraw.cable(pose, buffers, new org.joml.Vector3f(0.5f, 0.05f, startZ), end, light, 0xFF16181C);
     }
 
     /** 21:9 panel bent around a vertical axis ({@code radius} 2.2 blocks) so it wraps toward the viewer. */
     private void curved(MonitorBlockEntity be, PoseStack pose, MultiBufferSource buffers, UUID vm, int light, float part0, float partW) {
-        final int segments = 16;
-        final float width = 2.6f;
-        final float height = 1.11f;
-        final float radius = 3.0f;
+        final int segments = 32;
+        // 2.0 x 0.857 blocks: a 21:9 ultrawide that fits on a desk, not a 110" wall
+        final float width = 2.0f;
+        final float height = 0.857f;
+        final float radius = 2.2f;
         final float y0 = 4.5f * PX;
         final float zFront = 7f * PX;
         float arc = width / radius;
@@ -80,16 +118,20 @@ public class MonitorRenderer implements BlockEntityRenderer<MonitorBlockEntity>,
             ScreenDraw.box(pose, buffers, -segW / 2, y0 - 0.04f, 0.03f, segW / 2, y0 + height + 0.03f, 0.09f, light, SHELL_COLOR);
             ScreenDraw.box(pose, buffers, -segW / 2, y0 - 0.05f, -0.004f, segW / 2, y0, 0.03f, light, BEZEL_COLOR);
             ScreenDraw.box(pose, buffers, -segW / 2, y0 + height, -0.004f, segW / 2, y0 + height + 0.02f, 0.03f, light, BEZEL_COLOR);
-            // rear light bar (like the ring lights on gaming ultrawides)
+            if (i == 0) ScreenDraw.box(pose, buffers, segW / 2, y0 - 0.05f, -0.004f, segW / 2 + 0.012f, y0 + height + 0.02f, 0.09f, light, BEZEL_COLOR);
+            if (i == segments - 1) ScreenDraw.box(pose, buffers, -segW / 2 - 0.012f, y0 - 0.05f, -0.004f, -segW / 2, y0 + height + 0.02f, 0.09f, light,
+                    BEZEL_COLOR);
+            // emissive rear light bar, like the ring lights on gaming ultrawides
             float ly = y0 + height * 0.62f;
-            ScreenDraw.box(pose, buffers, -segW / 2, ly, 0.09f, segW / 2, ly + 0.025f, 0.096f, FULL_BRIGHT, ACCENT_COLOR);
+            ScreenDraw.glow(pose, buffers, -segW / 2, ly, 0.09f, segW / 2, ly + 0.02f, 0.094f, ACCENT_COLOR);
             float s0 = (float) i / segments;
             float s1 = (float) (i + 1) / segments;
             float c0 = Math.max(0f, (s0 - margin) / fill);
             float c1 = Math.min(1f, (s1 - margin) / fill);
             if (live != null && c1 <= c0) {
-                ScreenDraw.quad(buffers.getBuffer(HvxRenderTypes.screen(ScreenDraw.WHITE)), pose.last().pose(), segW / 2, y0, -segW / 2, y0 + height, 0f,
-                        0f, 0f, 1f, 1f, 0xFF000000);
+                // outside the picture: just black (repeating the picture here looks like a doubled image)
+                ScreenDraw.quad(buffers.getBuffer(HvxRenderTypes.screen(ScreenDraw.WHITE)), pose.last().pose(), segW / 2 + 0.0015f, y0,
+                        -segW / 2 - 0.0015f, y0 + height, 0f, 0f, 0f, 1f, 1f, 0xFF050608);
             } else if (live != null) {
                 // edge segment that's only partly covered: black border + the visible slice of the picture
                 float a = ((margin + c0 * fill) - s0) / (s1 - s0);
@@ -97,8 +139,8 @@ public class MonitorRenderer implements BlockEntityRenderer<MonitorBlockEntity>,
                 float xa = segW / 2 - a * segW;
                 float xb = segW / 2 - b * segW;
                 if (a > 0.001f || b < 0.999f) {
-                    ScreenDraw.quad(buffers.getBuffer(HvxRenderTypes.screen(ScreenDraw.WHITE)), pose.last().pose(), segW / 2, y0, -segW / 2, y0 + height,
-                            0.0005f, 0f, 0f, 1f, 1f, 0xFF000000);
+                    ScreenDraw.quad(buffers.getBuffer(HvxRenderTypes.screen(ScreenDraw.WHITE)), pose.last().pose(), segW / 2 + 0.0015f, y0,
+                            -segW / 2 - 0.0015f, y0 + height, 0.0005f, 0f, 0f, 1f, 1f, 0xFF050608);
                 }
                 ScreenDraw.screen(pose, buffers, vm, be.getBlockPos(), xa + (a <= 0.001f ? 0.0015f : 0f), y0, xb - (b >= 0.999f ? 0.0015f : 0f), y0 + height,
                         0f, part0 + partW * c0, part0 + partW * c1, false);
@@ -111,7 +153,7 @@ public class MonitorRenderer implements BlockEntityRenderer<MonitorBlockEntity>,
             pose.popPose();
         }
         // stand neck goes up to the hinge behind the panel
-        ScreenDraw.box(pose, buffers, 7.2f * PX, 9f * PX, 8.6f * PX, 8.8f * PX, y0 + 0.36f, 9.8f * PX, light, 0xFF383D46);
+        ScreenDraw.box(pose, buffers, 7.2f * PX, 9f * PX, 8.3f * PX, 8.8f * PX, y0 + 0.36f, 9.8f * PX, light, 0xFF383D46);
     }
 
     /** Two or three panels on a desk arm. On the triple, the outer two angle in toward you. */
@@ -170,6 +212,8 @@ public class MonitorRenderer implements BlockEntityRenderer<MonitorBlockEntity>,
 
     @Override
     public AABB renderBounds(MonitorBlockEntity be) {
-        return new AABB(be.getBlockPos()).inflate(2.0, 1.0, 2.0);
+        AABB box = new AABB(be.getBlockPos()).inflate(2.0, 1.0, 2.0);
+        net.minecraft.core.BlockPos host = be.linkHost();
+        return host != null && host.distSqr(be.getBlockPos()) <= 16 * 16 ? box.minmax(new AABB(host)) : box;
     }
 }

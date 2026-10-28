@@ -3,32 +3,85 @@
     "facing=north,powered=false": {
       "model": "hypervisorx:block/server_rack"
     },
-    "facing=north,powered=true": {
-      "model": "hypervisorx:block/server_rack_on"
-    },
+    "facing=north,powered=true": [
+      {
+        "model": "hypervisorx:block/server_rack_on_0"
+      },
+      {
+        "model": "hypervisorx:block/server_rack_on_1"
+      },
+      {
+        "model": "hypervisorx:block/server_rack_on_2"
+      },
+      {
+        "model": "hypervisorx:block/server_rack_on_3"
+      }
+    ],
     "facing=east,powered=false": {
       "model": "hypervisorx:block/server_rack",
       "y": 90
     },
-    "facing=east,powered=true": {
-      "model": "hypervisorx:block/server_rack_on",
-      "y": 90
-    },
+    "facing=east,powered=true": [
+      {
+        "model": "hypervisorx:block/server_rack_on_0",
+        "y": 90
+      },
+      {
+        "model": "hypervisorx:block/server_rack_on_1",
+        "y": 90
+      },
+      {
+        "model": "hypervisorx:block/server_rack_on_2",
+        "y": 90
+      },
+      {
+        "model": "hypervisorx:block/server_rack_on_3",
+        "y": 90
+      }
+    ],
     "facing=south,powered=false": {
       "model": "hypervisorx:block/server_rack",
       "y": 180
     },
-    "facing=south,powered=true": {
-      "model": "hypervisorx:block/server_rack_on",
-      "y": 180
-    },
+    "facing=south,powered=true": [
+      {
+        "model": "hypervisorx:block/server_rack_on_0",
+        "y": 180
+      },
+      {
+        "model": "hypervisorx:block/server_rack_on_1",
+        "y": 180
+      },
+      {
+        "model": "hypervisorx:block/server_rack_on_2",
+        "y": 180
+      },
+      {
+        "model": "hypervisorx:block/server_rack_on_3",
+        "y": 180
+      }
+    ],
     "facing=west,powered=false": {
       "model": "hypervisorx:block/server_rack",
       "y": 270
     },
-    "facing=west,powered=true": {
-      "model": "hypervisorx:block/server_rack_on",
-      "y": 270
-    }
+    "facing=west,powered=true": [
+      {
+        "model": "hypervisorx:block/server_rack_on_0",
+        "y": 270
+      },
+      {
+        "model": "hypervisorx:block/server_rack_on_1",
+        "y": 270
+      },
+      {
+        "model": "hypervisorx:block/server_rack_on_2",
+        "y": 270
+      },
+      {
+        "model": "hypervisorx:block/server_rack_on_3",
+        "y": 270
+      }
+    ]
   }
 }
