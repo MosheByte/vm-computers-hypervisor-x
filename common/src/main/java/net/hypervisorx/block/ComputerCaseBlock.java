@@ -35,7 +35,7 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 /** Retro PC and the RGB tempered-glass gaming tower. Sends/reads redstone through the GPIO card. */
 public class ComputerCaseBlock extends HorizontalEntityBlock {
     public static final BooleanProperty POWERED = BlockStateProperties.POWERED;
-    private static final VoxelShape RETRO = Shapes.box(1, 0, 2, 15, 11, 15);
+    private static final VoxelShape RETRO = Shapes.box(4, 0, 1, 12, 15.5, 15);
     private static final VoxelShape TOWER = Shapes.box(4, 0, 1, 12, 16, 15);
     private final FormFactor form;
 

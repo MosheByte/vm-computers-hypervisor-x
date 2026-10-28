@@ -18,6 +18,25 @@ public final class GuiTex {
 
     public static void draw(GuiGraphics g, ResourceLocation tex, float x0, float y0, float x1, float y1) {
         g.flush();
+        net.minecraft.client.renderer.ShaderInstance sharp = net.hypervisorx.client.render.HvxRenderTypes.screenShader();
+        if (sharp != null && net.hypervisorx.config.HvxClientConfig.get().sharpUpscaling) {
+            // same sharp-bilinear shader the in-world screens use, keeps text crisp when the guest is scaled up
+            net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+            mc.gameRenderer.lightTexture().turnOnLightLayer();
+            RenderSystem.setShader(() -> sharp);
+            RenderSystem.setShaderTexture(0, tex);
+            RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+            Matrix4f m = g.pose().last().pose();
+            int light = net.minecraft.client.renderer.LightTexture.FULL_BRIGHT;
+            BufferBuilder bb = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR_TEX_LIGHTMAP);
+            bb.addVertex(m, x0, y0, 0).setColor(-1).setUv(0, 0).setLight(light);
+            bb.addVertex(m, x0, y1, 0).setColor(-1).setUv(0, 1).setLight(light);
+            bb.addVertex(m, x1, y1, 0).setColor(-1).setUv(1, 1).setLight(light);
+            bb.addVertex(m, x1, y0, 0).setColor(-1).setUv(1, 0).setLight(light);
+            BufferUploader.drawWithShader(bb.buildOrThrow());
+            mc.gameRenderer.lightTexture().turnOffLightLayer();
+            return;
+        }
         RenderSystem.setShader(GameRenderer::getPositionTexShader);
         RenderSystem.setShaderTexture(0, tex);
         RenderSystem.setShaderColor(1f, 1f, 1f, 1f);

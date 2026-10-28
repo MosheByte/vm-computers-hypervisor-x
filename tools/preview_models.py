@@ -93,9 +93,11 @@ def render(model_path, size=320, cam=(1.0, 0.75, -1.25)):
             ps = [proj(p) for p in cs]
             depth = sum(p[2] for p in ps) / 4
             quads.append((depth, ps, face, dname, e.get("shade", True)))
-    quads.sort(key=lambda q: -q[0])
+    # z-buffer: opaque texels first (nearest wins), then the translucent ones back to front on top
     img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     px = img.load()
+    zbuf = [[float("inf")] * size for _ in range(size)]
+    pending = []
     for depth, ps, face, dname, shade_on in quads:
         tex = load_tex(r(face["texture"]))
         tw, th = tex.size
@@ -116,6 +118,7 @@ def render(model_path, size=320, cam=(1.0, 0.75, -1.25)):
                 s = (qx * ey[1] - qy * ey[0]) / det
                 t = (ex[0] * qy - ex[1] * qx) / det
                 if 0 <= s <= 1 and 0 <= t <= 1:
+                    z = a[2] + (b[2] - a[2]) * s + (c3[2] - a[2]) * t
                     u = (u0 + (u1 - u0) * s) / 16 * tw
                     v = (v0 + (v1 - v0) * t) / 16 * th
                     col = tp[min(tw - 1, max(0, int(u))), min(th - 1, max(0, int(v)))]
@@ -123,12 +126,17 @@ def render(model_path, size=320, cam=(1.0, 0.75, -1.25)):
                         continue
                     cc = (int(col[0] * k), int(col[1] * k), int(col[2] * k))
                     if col[3] < 255:
-                        bg = px[x, y]
-                        al = col[3] / 255
-                        cc = tuple(int(bg[i] * (1 - al) + cc[i] * al) for i in range(3))
-                        px[x, y] = cc + (max(bg[3], col[3]),)
-                    else:
+                        pending.append((z, x, y, cc, col[3]))
+                    elif z < zbuf[y][x]:
+                        zbuf[y][x] = z
                         px[x, y] = cc + (255,)
+    pending.sort(key=lambda q: -q[0])
+    for z, x, y, cc, al in pending:
+        if z >= zbuf[y][x]:
+            continue
+        bg = px[x, y]
+        f = al / 255
+        px[x, y] = tuple(int(bg[i] * (1 - f) + cc[i] * f) for i in range(3)) + (max(bg[3], al),)
     return img
 
 

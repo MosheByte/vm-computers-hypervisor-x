@@ -90,6 +90,13 @@ public final class ScreenTextureManager {
         });
     }
 
+    /** Last texture of a VM without marking it watched (for the dimmed far-away screens), or null. */
+    public static ScreenTexture peek(UUID vm) {
+        if (vm == null) return null;
+        Entry e = ENTRIES.get(vm);
+        return e != null && e.registered && e.texture.width() > 0 && e.texture.hasContent() ? e.texture : null;
+    }
+
     /** Texture of a VM once frames have arrived. Gets registered with the texture manager lazily. */
     public static ScreenTexture get(UUID vm) {
         if (vm == null) return null;

@@ -36,7 +36,15 @@ public final class HyperVisorXFabricClient implements ClientModInitializer {
         HvxClient.init();
         for (HvxNetwork.S2CDef<?> def : HvxNetwork.S2C_PAYLOADS) registerReceiver(def);
         HvxKeys.ALL.forEach(KeyBindingHelper::registerKeyBinding);
-        ModelLoadingPlugin.register(ctx -> ctx.addModels(HvxClient.PART_MODELS));
+        ModelLoadingPlugin.register(ctx -> {
+            ctx.addModels(HvxClient.PART_MODELS);
+            // RGB faces glow at night (NeoForge gets this from neoforge_data in the model JSON)
+            ctx.modifyModelAfterBake().register((model, context) -> {
+                net.minecraft.resources.ResourceLocation id = context.resourceId() != null ? context.resourceId()
+                        : context.topLevelId() != null ? context.topLevelId().id() : null;
+                return id != null && id.getNamespace().equals(net.hypervisorx.HyperVisorX.MOD_ID) ? EmissiveModel.wrap(model) : model;
+            });
+        });
         HvxClient.partModels = id -> Minecraft.getInstance().getModelManager().getModel(id);
         MenuScreens.register(HvxMenus.COMPUTER.get(), ComputerScreen::new);
         HvxClient.registerRenderers(new HvxClient.RendererSink() {

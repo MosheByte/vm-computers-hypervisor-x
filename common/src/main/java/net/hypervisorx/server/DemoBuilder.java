@@ -30,11 +30,18 @@ public final class DemoBuilder {
     public static volatile BlockPos lastPc;
     public static volatile BlockPos lastTower;
     public static volatile BlockPos lastCurved;
+    /** Empty spot next to the crate, the autotest parks a supply pod there for a still. */
+    public static volatile BlockPos lastCorner;
 
     private DemoBuilder() {
     }
 
     public static Component build(ServerPlayer player) {
+        return build(player, true);
+    }
+
+    /** @param towerVm boot a MicroVM on the gaming tower too (its RGB and fans only light up while it's running) */
+    public static Component build(ServerPlayer player, boolean towerVm) {
         VmManager m = VmManager.get();
         if (m == null) return Component.literal("Server not ready");
         ServerLevel level = player.serverLevel();
@@ -71,7 +78,9 @@ public final class DemoBuilder {
         link(level, monitor, pc);
         place(level, pc.relative(look.getOpposite()), HvxBlocks.KEYBOARD.get(), facing);
         place(level, pc.relative(look.getOpposite()).relative(right), HvxBlocks.MOUSE.get(), facing);
+        // speakers are one per block, so put one on each side of the PC + monitor
         place(level, pc.relative(right.getOpposite()), HvxBlocks.SPEAKERS.get(), facing);
+        place(level, pc.relative(right), HvxBlocks.SPEAKERS.get(), facing);
 
         // RGB tower + curved ultrawide showing the same desktop
         BlockPos tower = base.relative(right, 3);
@@ -104,6 +113,14 @@ public final class DemoBuilder {
         link(level, arm, pc);
         place(level, base.relative(right, 10), HvxBlocks.PRO_LAPTOP.get(), facing);
 
+        // retro corner behind the arms: CRT on the same desktop, rugged laptop, delivery crate
+        BlockPos crt = base.relative(right, 6).relative(look, 3);
+        place(level, crt, HvxBlocks.CRT_MONITOR.get(), facing);
+        link(level, crt, pc);
+        place(level, base.relative(right, 7).relative(look, 3), HvxBlocks.RUGGED_LAPTOP.get(), facing);
+        level.setBlockAndUpdate(base.relative(right, 8).relative(look, 3), HvxBlocks.DELIVERY_CRATE.get().defaultBlockState());
+        lastCorner = base.relative(right, 9).relative(look, 3);
+
         // two-unit server rack
         BlockPos rack = base.relative(right, 11).relative(look, 3);
         place(level, rack, HvxBlocks.SERVER_RACK.get(), facing);
@@ -114,7 +131,18 @@ public final class DemoBuilder {
             unit.parts().setItem(2, HvxItems.ENTERPRISE_HDD.get().getDefaultInstance());
         }
 
+        VmRecord towerRecord = null;
+        if (towerVm) {
+            towerRecord = HostService.ensureRecord(player, gaming, 0);
+            towerRecord.backend = "embedded";
+            towerRecord.guestOs = GuestOs.LINUX;
+            towerRecord.name = "Demo Linux (tower)";
+            towerRecord.access = VmRecord.Access.PUBLIC;
+            link(level, curved, tower);
+        }
+
         m.data().changed();
+        if (towerRecord != null) m.startUnchecked(towerRecord, gaming.builtSpec(), gaming);
         Component err = m.startUnchecked(r, retro.builtSpec(), retro); // unchecked is fine, /hvx demo is op-only
         return err != null ? err : Component.literal("HyperVisor X showroom built - booting the embedded Linux MicroVM...");
     }

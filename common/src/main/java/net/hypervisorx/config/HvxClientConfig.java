@@ -25,7 +25,7 @@ public final class HvxClientConfig {
     public int screenRenderDistance = 96;
     public boolean audioEnabled = true;
     public float audioVolume = 1.0f;
-    public boolean showFpsOverlay = true;
+    public boolean showFpsOverlay = false;
     /** Picture-in-picture HUD while you hold a running laptop. */
     public boolean laptopPictureInPicture = true;
     /** 0 top-right, 1 top-left, 2 bottom-right, 3 bottom-left */

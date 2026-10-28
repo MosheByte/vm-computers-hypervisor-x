@@ -99,7 +99,7 @@ public final class AutoTest {
                             sp.setXRot(4f);
                             origin = sp.position();
                             server.overworld().setDayTime(6000);
-                            log("demo: " + DemoBuilder.build(sp).getString());
+                            log("demo: " + DemoBuilder.build(sp, !VMWARE).getString());
                         });
                         stage = 2;
                         ticks = 0;
@@ -155,7 +155,49 @@ public final class AutoTest {
                     if (ticks == 500) {
                         shot(mc, "hvx-computer.png");
                         mc.setScreen(null);
-                        stage = VMWARE ? 10 : 4;
+                        openPcMenu(mc, DemoBuilder.lastTower);
+                    }
+                    if (ticks == 560) {
+                        shot(mc, "hvx-computer-tower.png");
+                        mc.setScreen(null);
+                        stage = VMWARE ? 10 : 5;
+                        ticks = 0;
+                    }
+                }
+                // more stills: retro corner, settings, file browser, then the same shots at night
+                case 5 -> {
+                    if (ticks == 2) {
+                        mc.setScreen(null);
+                        var server = mc.getSingleplayerServer();
+                        BlockPos pod = DemoBuilder.lastCorner;
+                        if (pod != null) server.execute(() -> server.overworld().setBlockAndUpdate(pod,
+                                net.hypervisorx.registry.HvxBlocks.SUPPLY_POD.get().defaultBlockState()));
+                        teleport(mc, 2.6, 0.2, -4.5, 180f, 30f);
+                    }
+                    if (ticks == 60) shot(mc, "hvx-retro-corner.png");
+                    if (ticks == 62) teleport(mc, 1.5, -0.3, -5.2, 180f, 24f);
+                    if (ticks == 110) shot(mc, "hvx-crt.png");
+                    if (ticks == 112) mc.setScreen(new net.hypervisorx.client.screen.SettingsScreen(null));
+                    if (ticks == 160) {
+                        shot(mc, "hvx-settings.png");
+                        mc.setScreen(new net.hypervisorx.client.screen.FileBrowserScreen(null));
+                    }
+                    if (ticks == 210) {
+                        shot(mc, "hvx-files.png");
+                        mc.setScreen(null);
+                        var server = mc.getSingleplayerServer();
+                        server.execute(() -> server.overworld().setDayTime(18000));
+                        teleport(mc, 0.5, 1.2, 3.0, 180f, 4f);
+                    }
+                    if (ticks == 280) shot(mc, "hvx-night-world.png");
+                    if (ticks == 282) teleport(mc, -3.3, 0.2, -2.1, -128f, 22f);
+                    if (ticks == 330) shot(mc, "hvx-night-tower.png");
+                    if (ticks == 332) teleport(mc, -4.0, 0.2, -1.9, 180f, 32f);
+                    if (ticks == 380) shot(mc, "hvx-night-desk.png");
+                    if (ticks == 382) teleport(mc, 3.6, 0.6, -2.6, -142f, 20f);
+                    if (ticks == 430) {
+                        shot(mc, "hvx-night-rack.png");
+                        stage = 4;
                         ticks = 0;
                     }
                 }
@@ -246,6 +288,14 @@ public final class AutoTest {
                 case 12 -> {
                     if (ticks == 1) shot(mc, "hvx-vmware-world.png");
                     if (ticks == 10) mc.setScreen(new FocusScreen(vmwareVm, false));
+                    // interaction check: move the guest cursor around, then click the terminal in the dock
+                    if (ticks == 40) pointer(mc, 120, 120, 0);
+                    if (ticks == 60) shot(mc, "hvx-vmware-pointer-a.png");
+                    if (ticks == 62) pointer(mc, 870, 600, 0);
+                    if (ticks == 82) shot(mc, "hvx-vmware-pointer-b.png");
+                    if (ticks == 84) pointer(mc, 610, 742, 0);
+                    if (ticks == 90) pointer(mc, 610, 742, 1);
+                    if (ticks == 93) pointer(mc, 610, 742, 0);
                     if (ticks == 120) shot(mc, "hvx-vmware-focus.png");
                     if (ticks == 130) {
                         mc.setScreen(null);
@@ -287,6 +337,17 @@ public final class AutoTest {
             ServerPlayer sp = server.getPlayerList().getPlayer(self);
             if (sp == null || o == null) return;
             sp.teleportTo(sp.serverLevel(), o.x + dx, o.y + dy, o.z + dz, yaw, pitch);
+        });
+    }
+
+    /** Sends a pointer event to the VMware guest down the same server path player input takes. */
+    private static void pointer(Minecraft mc, int x, int y, int buttons) {
+        var server = mc.getSingleplayerServer();
+        UUID vm = vmwareVm;
+        server.execute(() -> {
+            var m = VmManager.get();
+            var session = m == null || vm == null ? null : m.session(vm);
+            if (session != null && session.instance() != null) session.instance().pointer(x, y, buttons);
         });
     }
 

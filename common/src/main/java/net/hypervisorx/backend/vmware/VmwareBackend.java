@@ -271,6 +271,10 @@ public final class VmwareBackend implements HypervisorBackend {
         vmx.set("usb.present", true);
         vmx.set("ehci.present", true);
         vmx.set("usb_xhci.present", !legacy);
+        // absolute USB pointer: guests without VMware Tools (live CDs, installers) ignore the absolute
+        // positions the VNC server sends to the PS/2 mouse, so the cursor would just sit where it started
+        vmx.set("mouse.vusb.enable", true);
+        vmx.set("mouse.vusb.useBasicMouse", false);
         vmx.set("sound.present", spec.audio());
         vmx.set("sound.virtualDev", legacy ? "sb16" : "hdaudio");
         vmx.set("sound.fileName", "-1");

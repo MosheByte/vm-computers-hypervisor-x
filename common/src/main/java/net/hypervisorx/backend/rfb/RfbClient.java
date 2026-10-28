@@ -226,14 +226,26 @@ public final class RfbClient implements AutoCloseable {
                 int type = in.readUnsignedByte();
                 switch (type) {
                     case 0 -> {
+                        // pipelining: if the frame budget's already spent, ask for the next update before reading
+                        // this one so the server builds it while we decode (smoother scrolling)
+                        boolean early = System.nanoTime() - lastRequest >= frameNanos;
+                        if (early) {
+                            lastRequest = System.nanoTime();
+                            synchronized (this) {
+                                requestUpdate(true, framebuffer.width(), framebuffer.height());
+                                out.flush();
+                            }
+                        }
                         readFramebufferUpdate();
                         framebuffer.frameCompleted();
-                        long wait = frameNanos - (System.nanoTime() - lastRequest);
-                        if (wait > 0) LockSupport.parkNanos(wait);
-                        lastRequest = System.nanoTime();
-                        synchronized (this) {
-                            requestUpdate(true, framebuffer.width(), framebuffer.height());
-                            out.flush();
+                        if (!early) {
+                            long wait = frameNanos - (System.nanoTime() - lastRequest);
+                            if (wait > 0) LockSupport.parkNanos(wait);
+                            lastRequest = System.nanoTime();
+                            synchronized (this) {
+                                requestUpdate(true, framebuffer.width(), framebuffer.height());
+                                out.flush();
+                            }
                         }
                     }
                     case 1 -> { // SetColourMapEntries (never used in true colour, just skip it)

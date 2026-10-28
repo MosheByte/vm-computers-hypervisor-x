@@ -88,6 +88,10 @@ public final class ScreenDraw {
             }
             quad(buffers.getBuffer(HvxRenderTypes.screen(tex.location())), m,
                     cx + dir * w / 2f, cy - h / 2f, cx - dir * w / 2f, cy + h / 2f, z, u0, 0f, u1, 1f, 0xFFFFFFFF);
+        } else if (running && !ScreenTracker.withinRenderDistance(pos) && ScreenTextureManager.peek(vm) != null) {
+            // past streaming distance: show the last picture dimmed instead of the boot splash
+            ScreenTexture last = ScreenTextureManager.peek(vm);
+            quad(buffers.getBuffer(HvxRenderTypes.screen(last.location())), m, xLeft, yBottom, xRight, yTop, z, u0, 0f, u1, 1f, 0xFF4D4D4D);
         } else if (running) {
             quad(buffers.getBuffer(HvxRenderTypes.screen(BOOT)), m, xLeft, yBottom, xRight, yTop, z, u0, 0f, u1, 1f, 0xFFFFFFFF);
             if (tex == null && status != null && letterbox) label(pose, buffers, (xLeft + xRight) / 2f, yBottom + panelH * 0.18f, z - Z_EPS,
@@ -96,6 +100,13 @@ public final class ScreenDraw {
             quad(buffers.getBuffer(HvxRenderTypes.screen(WHITE)), m, xLeft, yBottom, xRight, yTop, z, 0f, 0f, 1f, 1f, 0xFF050608);
         } else {
             quad(buffers.getBuffer(HvxRenderTypes.screen(NO_SIGNAL)), m, xLeft, yBottom, xRight, yTop, z, u0, 0f, u1, 1f, 0xFFFFFFFF);
+            // the splash has no text baked in, the words get translated and drawn here
+            if (letterbox) {
+                label(pose, buffers, (xLeft + xRight) / 2f, yBottom + panelH * 0.52f, z - Z_EPS, panelW * 0.7f,
+                        Component.translatable("hypervisorx.screen.no_signal"));
+                label(pose, buffers, (xLeft + xRight) / 2f, yBottom + panelH * 0.32f, z - Z_EPS, panelW * 0.9f,
+                        Component.translatable("hypervisorx.screen.no_signal_hint").withStyle(s -> s.withColor(0x8A94A6)));
+            }
         }
     }
 
@@ -117,7 +128,8 @@ public final class ScreenDraw {
 
     /** Solid lit box in the current pose, for the monitor bodies we draw in code. */
     public static void box(PoseStack pose, MultiBufferSource buffers, float x0, float y0, float z0, float x1, float y1, float z1, int light, int argb) {
-        VertexConsumer vc = buffers.getBuffer(RenderType.entitySolid(SHELL));
+        // white texture so the vertex colour is the real colour (the old shell texture was ~10% grey and made everything black)
+        VertexConsumer vc = buffers.getBuffer(RenderType.entitySolid(WHITE));
         PoseStack.Pose p = pose.last();
         int a = argb >>> 24, r = (argb >> 16) & 0xFF, g = (argb >> 8) & 0xFF, b = argb & 0xFF;
         float[][] faces = {
@@ -134,6 +146,80 @@ public final class ScreenDraw {
                 vc.addVertex(p, f[i * 3], f[i * 3 + 1], f[i * 3 + 2]).setColor(r, g, b, a).setUv(i < 2 ? 0 : 1, i % 3 == 0 ? 1 : 0)
                         .setOverlay(OverlayTexture.NO_OVERLAY).setLight(light).setNormal(p, f[12], f[13], f[14]);
             }
+        }
+    }
+
+    /** Glowing box (additive, full-bright) for light bars and status LEDs. */
+    public static void glow(PoseStack pose, MultiBufferSource buffers, float x0, float y0, float z0, float x1, float y1, float z1, int argb) {
+        VertexConsumer vc = buffers.getBuffer(RenderType.eyes(WHITE));
+        PoseStack.Pose p = pose.last();
+        int a = argb >>> 24, r = (argb >> 16) & 0xFF, g = (argb >> 8) & 0xFF, b = argb & 0xFF;
+        float[][] faces = {
+                {x0, y0, z0, x0, y1, z0, x1, y1, z0, x1, y0, z0, 0, 0, -1},
+                {x1, y0, z1, x1, y1, z1, x0, y1, z1, x0, y0, z1, 0, 0, 1},
+                {x0, y0, z1, x0, y1, z1, x0, y1, z0, x0, y0, z0, -1, 0, 0},
+                {x1, y0, z0, x1, y1, z0, x1, y1, z1, x1, y0, z1, 1, 0, 0},
+                {x0, y1, z0, x0, y1, z1, x1, y1, z1, x1, y1, z0, 0, 1, 0},
+                {x0, y0, z1, x0, y0, z0, x1, y0, z0, x1, y0, z1, 0, -1, 0}
+        };
+        for (float[] f : faces) {
+            for (int i = 0; i < 4; i++) {
+                vc.addVertex(p, f[i * 3], f[i * 3 + 1], f[i * 3 + 2]).setColor(r, g, b, a).setUv(i < 2 ? 0 : 1, i % 3 == 0 ? 1 : 0)
+                        .setOverlay(OverlayTexture.NO_OVERLAY).setLight(LightTexture.FULL_BRIGHT).setNormal(p, f[12], f[13], f[14]);
+            }
+        }
+    }
+
+    /**
+     * Sagging cable (the HDMI link) from {@code a} to {@code b} in the current pose. It's a thin
+     * square tube and never dips below the lower end.
+     */
+    public static void cable(PoseStack pose, MultiBufferSource buffers, org.joml.Vector3f a, org.joml.Vector3f b, int light, int argb) {
+        VertexConsumer vc = buffers.getBuffer(RenderType.entityCutoutNoCull(WHITE));
+        PoseStack.Pose p = pose.last();
+        int ca = argb >>> 24, cr = (argb >> 16) & 0xFF, cg = (argb >> 8) & 0xFF, cb = argb & 0xFF;
+        float len = a.distance(b);
+        float sag = 0.1f + 0.05f * len;
+        float h = 0.013f;
+        float floor = Math.min(a.y, b.y) + h;
+        int n = Math.max(6, Math.min(48, (int) (len * 6)));
+        org.joml.Vector3f prev = new org.joml.Vector3f(a);
+        for (int i = 1; i <= n; i++) {
+            float t = i / (float) n;
+            org.joml.Vector3f cur = new org.joml.Vector3f(a).lerp(b, t);
+            cur.y = Math.max(floor, cur.y - sag * 4 * t * (1 - t));
+            org.joml.Vector3f d = new org.joml.Vector3f(cur).sub(prev);
+            if (d.lengthSquared() < 1e-8f) continue;
+            d.normalize();
+            org.joml.Vector3f up = Math.abs(d.y) > 0.9f ? new org.joml.Vector3f(1, 0, 0) : new org.joml.Vector3f(0, 1, 0);
+            org.joml.Vector3f s1 = new org.joml.Vector3f(d).cross(up).normalize().mul(h);
+            org.joml.Vector3f s2 = new org.joml.Vector3f(d).cross(s1).normalize().mul(h);
+            org.joml.Vector3f[] o = {new org.joml.Vector3f(s1).add(s2), new org.joml.Vector3f(s1).sub(s2),
+                    new org.joml.Vector3f(s1).negate().sub(s2), new org.joml.Vector3f(s2).sub(s1)};
+            for (int k = 0; k < 4; k++) {
+                org.joml.Vector3f o0 = o[k], o1 = o[(k + 1) % 4];
+                org.joml.Vector3f nrm = new org.joml.Vector3f(o0).add(o1).normalize();
+                float[][] v = {{prev.x + o0.x, prev.y + o0.y, prev.z + o0.z}, {cur.x + o0.x, cur.y + o0.y, cur.z + o0.z},
+                        {cur.x + o1.x, cur.y + o1.y, cur.z + o1.z}, {prev.x + o1.x, prev.y + o1.y, prev.z + o1.z}};
+                for (float[] c : v) {
+                    vc.addVertex(p, c[0], c[1], c[2]).setColor(cr, cg, cb, ca).setUv(0.5f, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(light)
+                            .setNormal(p, nrm.x, nrm.y, nrm.z);
+                }
+            }
+            prev = cur;
+        }
+    }
+
+    /** Translucent textured quad facing -Z. Used for the CRT scanline/vignette mask and the glass. */
+    public static void overlay(PoseStack pose, MultiBufferSource buffers, ResourceLocation texture, float xLeft, float yBottom, float xRight, float yTop,
+                               float z, int argb, int light) {
+        VertexConsumer vc = buffers.getBuffer(RenderType.entityTranslucent(texture));
+        PoseStack.Pose p = pose.last();
+        int a = argb >>> 24, r = (argb >> 16) & 0xFF, g = (argb >> 8) & 0xFF, b = argb & 0xFF;
+        float[][] v = {{xLeft, yTop, 0, 0}, {xLeft, yBottom, 0, 1}, {xRight, yBottom, 1, 1}, {xRight, yTop, 1, 0}};
+        for (float[] c : v) {
+            vc.addVertex(p, c[0], c[1], z).setColor(r, g, b, a).setUv(c[2], c[3]).setOverlay(OverlayTexture.NO_OVERLAY).setLight(light)
+                    .setNormal(p, 0, 0, -1);
         }
     }
 

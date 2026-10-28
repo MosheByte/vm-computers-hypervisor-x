@@ -10,6 +10,7 @@ import net.hypervisorx.hardware.FormFactor;
 import net.hypervisorx.item.HardwareItem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
@@ -40,6 +41,7 @@ public class ComputerRenderer implements BlockEntityRenderer<ComputerBlockEntity
         Direction facing = be.getBlockState().getValue(HorizontalEntityBlock.FACING);
         pose.pushPose();
         ScreenDraw.faceNorth(pose, facing);
+        glass(pose, buffers, light);
         int ram = 0;
         boolean card = false;
         boolean drive = false;
@@ -71,18 +73,49 @@ public class ComputerRenderer implements BlockEntityRenderer<ComputerBlockEntity
         pose.popPose();
     }
 
+    private static final net.minecraft.util.RandomSource RANDOM = net.minecraft.util.RandomSource.create();
+
+    /**
+     * Draws a part model with vanilla face shading and mipmaps. RGB, fan and LCD faces are emissive,
+     * so the case glows at night like a real build.
+     */
     private static void draw(PoseStack pose, MultiBufferSource buffers, ResourceLocation id, int light, int overlay, float zOffset) {
         BakedModel model = HvxClient.partModels.apply(id);
         if (model == null) return;
         pose.pushPose();
         pose.translate(0, 0, zOffset * PX);
-        Minecraft.getInstance().getBlockRenderer().getModelRenderer().renderModel(pose.last(), buffers.getBuffer(RenderType.cutout()), null,
-                model, 1f, 1f, 1f, light, overlay);
+        com.mojang.blaze3d.vertex.VertexConsumer vc = buffers.getBuffer(RenderType.cutoutMipped());
+        net.minecraft.client.multiplayer.ClientLevel level = Minecraft.getInstance().level;
+        for (Direction dir : DIRECTIONS) {
+            for (net.minecraft.client.renderer.block.model.BakedQuad q : model.getQuads(null, dir, RANDOM)) {
+                float s = level == null ? 1f : level.getShade(q.getDirection(), q.isShade());
+                String tex = q.getSprite().contents().name().getPath();
+                boolean glow = tex.contains("fx/rgb") || tex.contains("fx/fan_rgb") || tex.contains("fx/aio_lcd");
+                vc.putBulkData(pose.last(), q, glow ? 1f : s, glow ? 1f : s, glow ? 1f : s, 1f, glow ? LightTexture.FULL_BRIGHT : light, overlay);
+            }
+        }
+        pose.popPose();
+    }
+
+    private static final Direction[] DIRECTIONS = {Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP, Direction.DOWN, null};
+
+    private static final ResourceLocation GLASS_FRONT = HyperVisorX.id("textures/block/fx/tower_glass_front.png");
+    private static final ResourceLocation GLASS_SIDE = HyperVisorX.id("textures/block/fx/tower_glass_side.png");
+
+    /** Panoramic tempered glass (front + left side). Drawn here so the case body itself can stay in the cutout layer. */
+    private static void glass(PoseStack pose, MultiBufferSource buffers, int light) {
+        // front pane: x 4.1..12.5, y 1.5..15, z 0.5, viewed from outside (north)
+        ScreenDraw.overlay(pose, buffers, GLASS_FRONT, 12.5f * PX, 1.5f * PX, 4.1f * PX, 15f * PX, 0.5f * PX, 0xFFFFFFFF, light);
+        // side pane on the +X face (x 12.5, z 0.6..14.5), turned to face east
+        pose.pushPose();
+        pose.translate(12.5f * PX, 0, 0);
+        pose.mulPose(com.mojang.math.Axis.YP.rotationDegrees(-90));
+        ScreenDraw.overlay(pose, buffers, GLASS_SIDE, 14.5f * PX, 1.5f * PX, 0.6f * PX, 15f * PX, 0f, 0xFFFFFFFF, light);
         pose.popPose();
     }
 
     @Override
     public int getViewDistance() {
-        return 48;
+        return 96;
     }
 }

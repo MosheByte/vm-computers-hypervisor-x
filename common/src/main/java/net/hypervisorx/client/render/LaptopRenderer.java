@@ -27,11 +27,14 @@ public class LaptopRenderer implements BlockEntityRenderer<LaptopBlockEntity> {
         pose.pushPose();
         ScreenDraw.faceNorth(pose, facing);
         pose.rotateAround(Axis.XP.rotationDegrees(LID_ANGLE), 8 * PX, 1 * PX, 12.4f * PX);
+        boolean rugged = be.getBlockState().is(net.hypervisorx.registry.HvxBlocks.RUGGED_LAPTOP.get());
+        float l = (rugged ? 13f : 13.5f) * PX, r = (rugged ? 3f : 2.5f) * PX;
+        float b = (rugged ? 2f : 1.6f) * PX, t = (rugged ? 9f : 9.3f) * PX;
         if (vm == null) {
-            ScreenDraw.quad(buffers.getBuffer(HvxRenderTypes.screen(ScreenDraw.WHITE)), pose.last().pose(), 13.5f * PX, 1.6f * PX,
-                    2.5f * PX, 9.3f * PX, 11.9f * PX - 0.002f, 0f, 0f, 1f, 1f, 0xFF06080B);
+            ScreenDraw.quad(buffers.getBuffer(HvxRenderTypes.screen(ScreenDraw.WHITE)), pose.last().pose(), l, b, r, t, 11.9f * PX - 0.002f,
+                    0f, 0f, 1f, 1f, 0xFF06080B);
         } else {
-            ScreenDraw.screen(pose, buffers, vm, be.getBlockPos(), 13.5f * PX, 1.6f * PX, 2.5f * PX, 9.3f * PX, 11.9f * PX - 0.002f, 0f, 1f);
+            ScreenDraw.screen(pose, buffers, vm, be.getBlockPos(), l, b, r, t, 11.9f * PX - 0.002f, 0f, 1f);
         }
         pose.popPose();
     }

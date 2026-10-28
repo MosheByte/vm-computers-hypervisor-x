@@ -25,9 +25,34 @@ import net.minecraft.world.phys.BlockHitResult;
 public class MonitorBlock extends HorizontalEntityBlock {
     private final MonitorType type;
 
+    /** On while the linked machine runs, so the panel gives off a bit of light like a real screen. */
+    public static final net.minecraft.world.level.block.state.properties.BooleanProperty LIT =
+            net.minecraft.world.level.block.state.properties.BlockStateProperties.LIT;
+    private final java.util.Map<net.minecraft.core.Direction, net.minecraft.world.phys.shapes.VoxelShape> outlines;
+
     public MonitorBlock(Properties properties, MonitorType type) {
         super(properties, type.shape());
         this.type = type;
+        this.outlines = Shapes.allFacings(type.outline());
+        registerDefaultState(defaultBlockState().setValue(LIT, false));
+    }
+
+    @Override
+    protected void createBlockStateDefinition(net.minecraft.world.level.block.state.StateDefinition.Builder<net.minecraft.world.level.block.Block, BlockState> builder) {
+        super.createBlockStateDefinition(builder);
+        builder.add(LIT);
+    }
+
+    @Override
+    protected net.minecraft.world.phys.shapes.VoxelShape getShape(BlockState state, net.minecraft.world.level.BlockGetter level, BlockPos pos,
+                                                               net.minecraft.world.phys.shapes.CollisionContext ctx) {
+        return outlines.get(state.getValue(FACING));
+    }
+
+    @Override
+    protected net.minecraft.world.phys.shapes.VoxelShape getCollisionShape(BlockState state, net.minecraft.world.level.BlockGetter level, BlockPos pos,
+                                                                        net.minecraft.world.phys.shapes.CollisionContext ctx) {
+        return super.getShape(state, level, pos, ctx);
     }
 
     public MonitorType type() {

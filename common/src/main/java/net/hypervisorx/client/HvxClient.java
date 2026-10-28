@@ -98,11 +98,11 @@ public final class HvxClient {
 
     /** Blocks with tempered glass. Translucent layer on Fabric, NeoForge just reads render_type from the model. */
     public static List<Block> translucentBlocks() {
-        return List.of(HvxBlocks.GAMING_TOWER.get());
+        return List.of();
     }
 
     public static List<Block> cutoutBlocks() {
-        return List.of(HvxBlocks.SERVER_RACK.get(), HvxBlocks.DUAL_MONITOR_ARM.get(), HvxBlocks.TRIPLE_MONITOR_ARM.get(),
+        return List.of(HvxBlocks.GAMING_TOWER.get(), HvxBlocks.SERVER_RACK.get(), HvxBlocks.DUAL_MONITOR_ARM.get(), HvxBlocks.TRIPLE_MONITOR_ARM.get(),
                 HvxBlocks.SUPPLY_POD.get());
     }
 

@@ -4,7 +4,8 @@
   "atlas": "hypervisorx:block/model/part/gpu_titan",
   "fan": "hypervisorx:block/fx/fan_rgb",
   "rgb": "hypervisorx:block/fx/rgb_strip",
-  "particle": "hypervisorx:block/model/part/gpu_titan"
+  "gold": "hypervisorx:block/fx/rgb_gold",
+  "particle": "hypervisorx:block/model/part/gpu_titan_p"
  },
  "elements": [
   {
@@ -22,69 +23,69 @@
     "north": {
      "texture": "#atlas",
      "uv": [
-      6.0,
-      6.0,
-      8.75,
-      7.0
+      0.5,
+      10.0,
+      3.25,
+      11.0
      ]
     },
     "south": {
      "texture": "#atlas",
      "uv": [
-      8.75,
-      6.0,
-      11.5,
-      7.0
+      4.25,
+      10.0,
+      7.0,
+      11.0
      ]
     },
     "east": {
      "texture": "#atlas",
      "uv": [
-      0.0,
-      6.0,
-      6.0,
-      7.0
+      7.0,
+      7.5,
+      13.0,
+      8.5
      ]
     },
     "up": {
      "texture": "#atlas",
      "uv": [
-      0.0,
-      0.0,
-      2.75,
-      6.0
+      0.5,
+      0.5,
+      3.25,
+      6.5
      ]
     },
     "down": {
      "texture": "#atlas",
      "uv": [
-      2.75,
-      0.0,
-      5.5,
-      6.0
+      4.25,
+      0.5,
+      7.0,
+      6.5
      ]
     }
    }
   },
   {
    "from": [
-    4.7,
+    5.2,
     4.8,
-    2.15
+    2.2
    ],
    "to": [
-    9.3,
+    8.8,
     5.0,
-    5.7167
+    5.8
    ],
    "faces": {
     "east": {
      "texture": "#atlas",
      "uv": [
-      5.5,
-      7.0,
-      7.5,
-      7.25
+      4.0,
+      12.0,
+      6.0,
+      12.25
      ]
     },
     "down": {
@@ -97,27 +98,31 @@
      ]
     }
    },
-   "shade": false
+   "shade": false,
+   "neoforge_data": {
+    "block_light": 15,
+    "sky_light": 15
+   }
   },
   {
    "from": [
-    4.7,
+    5.2,
     4.8,
-    6.0167
+    6.0
    ],
    "to": [
-    9.3,
+    8.8,
     5.0,
-    9.5833
+    9.6
    ],
    "faces": {
     "east": {
      "texture": "#atlas",
      "uv": [
-      7.5,
       7.0,
-      9.5,
-      7.25
+      12.0,
+      9.0,
+      12.25
      ]
     },
     "down": {
@@ -130,27 +135,31 @@
      ]
     }
    },
-   "shade": false
+   "shade": false,
+   "neoforge_data": {
+    "block_light": 15,
+    "sky_light": 15
+   }
   },
   {
    "from": [
-    4.7,
+    5.2,
     4.8,
-    9.8833
+    9.8
    ],
    "to": [
-    9.3,
+    8.8,
     5.0,
-    13.45
+    13.4
    ],
    "faces": {
     "east": {
      "texture": "#atlas",
      "uv": [
-      9.5,
-      7.0,
-      11.5,
-      7.25
+      10.0,
+      12.0,
+      12.0,
+      12.25
      ]
     },
     "down": {
@@ -163,17 +172,49 @@
      ]
     }
    },
-   "shade": false
+   "shade": false,
+   "neoforge_data": {
+    "block_light": 15,
+    "sky_light": 15
+   }
   },
   {
    "from": [
     9.6,
-    6.2,
+    6.35,
+    4.0
+   ],
+   "to": [
+    9.65,
+    6.55,
+    11.6
+   ],
+   "faces": {
+    "east": {
+     "texture": "#gold",
+     "uv": [
+      0,
+      0,
+      7.6,
+      0.2
+     ]
+    }
+   },
+   "shade": false,
+   "neoforge_data": {
+    "block_light": 15,
+    "sky_light": 15
+   }
+  },
+  {
+   "from": [
+    9.6,
+    5.3,
     2.4
    ],
    "to": [
     9.65,
-    6.6,
+    5.5,
     13.2
    ],
    "faces": {
@@ -182,12 +223,16 @@
      "uv": [
       0,
       0,
-      16,
-      2
+      10.8,
+      0.2
      ]
     }
    },
-   "shade": false
+   "shade": false,
+   "neoforge_data": {
+    "block_light": 15,
+    "sky_light": 15
+   }
   },
   {
    "from": [
@@ -204,55 +249,55 @@
     "north": {
      "texture": "#atlas",
      "uv": [
-      5.75,
-      0.0,
-      8.75,
-      1.5
+      9.25,
+      0.5,
+      12.25,
+      2.0
      ]
     },
     "south": {
      "texture": "#atlas",
      "uv": [
-      8.75,
-      0.0,
-      11.75,
-      1.5
+      0.5,
+      7.5,
+      3.5,
+      9.0
      ]
     },
     "east": {
      "texture": "#atlas",
      "uv": [
-      11.75,
-      0.0,
-      12.0,
-      1.5
+      4.5,
+      7.5,
+      4.75,
+      9.0
      ]
     },
     "west": {
      "texture": "#atlas",
      "uv": [
-      12.0,
-      0.0,
-      12.25,
-      1.5
+      5.75,
+      7.5,
+      6.0,
+      9.0
      ]
     },
     "up": {
      "texture": "#atlas",
      "uv": [
-      11.5,
-      6.0,
-      14.5,
-      6.25
+      8.0,
+      10.0,
+      11.0,
+      10.25
      ]
     },
     "down": {
      "texture": "#atlas",
      "uv": [
-      0.0,
-      7.0,
-      3.0,
-      7.25
+      12.0,
+      10.0,
+      15.0,
+      10.25
      ]
     }
    }
@@ -272,19 +317,19 @@
     "east": {
      "texture": "#atlas",
      "uv": [
+      0.5,
+      12.0,
       3.0,
-      7.0,
-      5.5,
-      7.25
+      12.25
      ]
     },
     "down": {
      "texture": "#atlas",
      "uv": [
-      5.5,
-      0.0,
-      5.75,
-      2.5
+      8.0,
+      0.5,
+      8.25,
+      3.0
      ]
     }
    }

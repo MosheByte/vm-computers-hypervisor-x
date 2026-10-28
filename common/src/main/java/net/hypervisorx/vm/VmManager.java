@@ -303,7 +303,10 @@ public final class VmManager {
             ram = cfg.embeddedRamMb;
         } else {
             ram = HostLimits.clampRam(rack ? r.allocRamMb : hw.ramMb(), cfg.maxRamMbPerVm, cfg.maxHostRamPercent, used);
-            if (ram < 256) return Component.translatable("hypervisorx.msg.host_ram", HostLimits.totalRamMb());
+            if (ram < 256) {
+                long allowed = HostLimits.totalRamMb() * cfg.maxHostRamPercent / 100;
+                return Component.translatable("hypervisorx.msg.host_ram", used, allowed, cfg.maxHostRamPercent, HostLimits.totalRamMb());
+            }
         }
         int span = Math.max(1, Math.min(r.spanMonitors, Math.max(1, hw.displays())));
         int width = Math.min(Framebuffer.MAX_DIMENSION, hw.width() * span);

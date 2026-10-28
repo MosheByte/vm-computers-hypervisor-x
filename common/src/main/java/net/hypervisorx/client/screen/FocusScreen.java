@@ -35,7 +35,15 @@ public class FocusScreen extends Screen {
     private int lastVmY = -1;
     private float rectX0, rectY0, rectX1, rectY1;
     private double mouseY;
+    private final UiKit.WheelSteps wheel = new UiKit.WheelSteps();
+    /** host cursor is hidden right now (the guest draws its own) */
+    private boolean cursorHidden;
     private final java.util.List<UiKit.FlatButton> bar = new java.util.ArrayList<>();
+    /** 0 = toolbar tucked away above the window, 1 = fully out. eased every frame */
+    private float slide = 1f;
+    private long lastFrame = System.currentTimeMillis();
+    private int pillX, pillW;
+    private static final int PILL_H = 22;
 
     public FocusScreen(UUID vm, boolean laptop) {
         super(Component.translatable("hypervisorx.focus.title"));
@@ -50,28 +58,29 @@ public class FocusScreen extends Screen {
     @Override
     protected void init() {
         bar.clear();
-        int y = 4;
-        int x = width - 5;
-        Component release = Component.translatable("hypervisorx.focus.release", HvxKeys.RELEASE.getTranslatedKeyMessage());
-        int rw = Math.min(110, font.width(release) + 26);
-        UiKit.FlatButton rel = new UiKit.FlatButton(x - rw, y, rw, 16, release, this::onClose).icon(UiKit.Icon.BACK).style(UiKit.Style.PRIMARY);
-        bar.add(addRenderableWidget(rel));
-        x -= rw + 6;
-        x = addBar(x, y, UiKit.Icon.CAMERA, Component.translatable("hypervisorx.focus.snapshot"), () -> action(C2S.HostAction.SNAPSHOT), UiKit.ACCENT);
-        x = addBar(x, y, UiKit.Icon.KEYBOARD, Component.literal("Ctrl+Alt+Del"), () -> action(C2S.HostAction.CTRL_ALT_DEL), UiKit.ACCENT_2);
-        x = addBar(x, y, UiKit.Icon.RESET, Component.translatable("hypervisorx.focus.reset"), () -> action(C2S.HostAction.RESET), UiKit.WARN);
-        x = addBar(x, y, UiKit.Icon.STOP, Component.translatable("hypervisorx.focus.force_off"), () -> action(C2S.HostAction.FORCE_OFF), UiKit.ERROR);
-        UiKit.FlatButton power = new UiKit.FlatButton(x - 22, y, 22, 16, Component.empty(), () -> action(running()
+        // floating toolbar pill up top: power, stop, reset, Ctrl+Alt+Del, snapshot, release
+        UiKit.FlatButton power = new UiKit.FlatButton(0, 0, 22, 16, Component.empty(), () -> action(running()
                 ? C2S.HostAction.SHUTDOWN : C2S.HostAction.POWER_ON)).icon(UiKit.Icon.POWER).accent(UiKit.OK);
         power.tip(() -> Component.translatable(running() ? "hypervisorx.focus.shutdown" : "hypervisorx.focus.power_on"));
         bar.add(addRenderableWidget(power));
+        addBar(UiKit.Icon.STOP, Component.translatable("hypervisorx.focus.force_off"), () -> action(C2S.HostAction.FORCE_OFF), UiKit.ERROR);
+        addBar(UiKit.Icon.RESET, Component.translatable("hypervisorx.focus.reset"), () -> action(C2S.HostAction.RESET), UiKit.WARN);
+        addBar(UiKit.Icon.KEYBOARD, Component.literal("Ctrl+Alt+Del"), () -> action(C2S.HostAction.CTRL_ALT_DEL), UiKit.ACCENT_2);
+        addBar(UiKit.Icon.CAMERA, Component.translatable("hypervisorx.focus.snapshot"), () -> action(C2S.HostAction.SNAPSHOT), UiKit.ACCENT);
+        Component release = Component.translatable("hypervisorx.focus.release", HvxKeys.RELEASE.getTranslatedKeyMessage());
+        // sized to its label so "Release (Right Control)" never gets clipped (only capped at half the window)
+        int rw = Math.min(width / 2, font.width(release) + 30);
+        bar.add(addRenderableWidget(new UiKit.FlatButton(0, 0, rw, 16, release, this::onClose).icon(UiKit.Icon.BACK).style(UiKit.Style.PRIMARY)));
     }
 
-    private int addBar(int right, int y, UiKit.Icon icon, Component tip, Runnable action, int accent) {
-        UiKit.FlatButton b = new UiKit.FlatButton(right - 22, y, 22, 16, Component.empty(), action).icon(icon).accent(accent).tip(tip);
+    private void addBar(UiKit.Icon icon, Component tip, Runnable action, int accent) {
+        UiKit.FlatButton b = new UiKit.FlatButton(0, 0, 22, 16, Component.empty(), action).icon(icon).accent(accent).tip(tip);
         if (accent == UiKit.ERROR) b.style(UiKit.Style.DANGER);
         bar.add(addRenderableWidget(b));
-        return right - 25;
+    }
+
+    private int pillY() {
+        return Math.round(4 - (PILL_H + 6) * (1 - slide));
     }
 
     private void action(int action) {
@@ -84,7 +93,7 @@ public class FocusScreen extends Screen {
     }
 
     private boolean overlayVisible() {
-        return System.currentTimeMillis() - openedAt < 3500 || mouseY < 26 || !running();
+        return System.currentTimeMillis() - openedAt < 3500 || mouseY < PILL_H + 10 || !running();
     }
 
     @Override
@@ -156,31 +165,71 @@ public class FocusScreen extends Screen {
             g.drawCenteredString(font, Component.translatable("hypervisorx.focus.hint", HvxKeys.RELEASE.getTranslatedKeyMessage()),
                     width / 2, y + 48, UiKit.MUTED);
         }
-        if (overlayVisible()) {
-            g.fillGradient(0, 0, width, 24, 0xFF171B22, 0xFF101318);
-            UiKit.accentLine(g, 0, 24, width);
+        // slide the toolbar in and out, ~150 ms
+        long now = System.currentTimeMillis();
+        float dt = Math.min(0.1f, (now - lastFrame) / 1000f);
+        lastFrame = now;
+        slide = Mth.clamp(slide + (overlayVisible() ? 1 : -1) * dt / 0.15f, 0f, 1f);
+        if (slide > 0f) {
             String name = status == null ? "" : status.name();
             String info = status == null ? "" : String.format("%s  %dx%d  %.0f fps  [%s]", status.state(), status.width(), status.height(),
                     status.fps(), status.backend());
-            int textWidth = Math.max(40, bar.stream().mapToInt(b -> b.getX()).min().orElse(width) - 14);
-            name = UiKit.ellipsize(font, name, textWidth);
-            info = UiKit.ellipsize(font, info, textWidth);
-            UiKit.icon(g, laptop ? UiKit.Icon.FOCUS : UiKit.Icon.MONITOR, 6, 6, UiKit.ACCENT_2);
-            g.drawString(font, UiKit.clip(font, name, textWidth - 18), 22, 4, UiKit.TEXT, false);
-            UiKit.textFit(g, font, info, 22, 14, textWidth - 18, UiKit.MUTED, 0.75f);
-            if (laptop && status != null && status.batteryPercent() >= 0) {
-                int bx = 6 + Math.max(font.width(name), font.width(info)) + 10;
+            int buttonsW = 0;
+            for (UiKit.FlatButton b : bar) buttonsW += b.getWidth() + 3;
+            boolean battery = laptop && status != null && status.batteryPercent() >= 0;
+            int textW = Math.min(180, Math.max(font.width(name), (int) UiKit.width(font, info, 0.75f)));
+            textW = Math.max(20, Math.min(textW, width - 40 - buttonsW - (battery ? 52 : 0)));
+            pillW = 6 + 16 + textW + (battery ? 52 : 0) + 8 + buttonsW + 3;
+            pillX = (width - pillW) / 2;
+            int y = pillY();
+            int alpha = (int) (0xD9 * slide);
+            UiKit.shadow(g, pillX, y, pillW, PILL_H);
+            UiKit.box(g, pillX, y, pillW, PILL_H, UiKit.withAlpha(0x171B22, alpha), UiKit.withAlpha(UiKit.STROKE, alpha));
+            UiKit.icon(g, laptop ? UiKit.Icon.LAPTOP : UiKit.Icon.MONITOR, pillX + 6, y + 5, UiKit.ACCENT_2);
+            g.drawString(font, UiKit.clip(font, name, textW), pillX + 22, y + 3, UiKit.TEXT, false);
+            UiKit.textFit(g, font, info, pillX + 22, y + 13, textW, UiKit.MUTED, 0.75f);
+            int bx = pillX + 22 + textW + 8;
+            if (battery) {
                 int pct = status.batteryPercent();
                 int color = pct > 50 ? UiKit.OK : pct > 15 ? UiKit.WARN : UiKit.ERROR;
-                g.fill(bx, 6, bx + 22, 16, 0xFF0B0E13);
-                g.fill(bx + 1, 7, bx + 1 + pct * 20 / 100, 15, color);
-                g.fill(bx + 22, 9, bx + 24, 13, 0xFF0B0E13);
-                g.drawString(font, pct + "%", bx + 28, 7, color, false);
+                int by = y + 6;
+                g.fill(bx, by, bx + 22, by + 10, 0xFF0B0E13);
+                g.fill(bx + 1, by + 1, bx + 1 + pct * 20 / 100, by + 9, color);
+                g.fill(bx + 22, by + 3, bx + 24, by + 7, 0xFF0B0E13);
+                UiKit.text(g, font, pct + "%", bx + 27, by + 2, color, 0.75f);
+                bx += 52;
             }
-            for (UiKit.FlatButton b : bar) b.render(g, mouseX, mouseY, partialTick);
+            for (UiKit.FlatButton b : bar) {
+                b.setPosition(bx, y + 3);
+                b.render(g, mouseX, mouseY, partialTick);
+                bx += b.getWidth() + 3;
+            }
         } else if (HvxClientConfig.get().showFpsOverlay && status != null) {
             g.drawString(font, String.format("%.0f fps", status.fps()), width - 40, 4, 0x80FFFFFF, false);
         }
+        UiKit.renderOverlays(g, font, mouseX, mouseY);
+        // one pointer on screen, not two: over a guest that draws its own cursor, hide Minecraft's
+        boolean overBar = slide > 0.5f && mouseX >= pillX && mouseX < pillX + pillW && mouseY >= pillY() && mouseY < pillY() + PILL_H;
+        setCursorHidden(insideVm(mouseX, mouseY) && !overBar && guestDrawsCursor(status) && minecraft.isWindowActive());
+    }
+
+    /** VNC guests (VMware, QEMU) bake their cursor into the picture. window capture and the MicroVM don't */
+    private static boolean guestDrawsCursor(S2C.VmStatus status) {
+        if (status == null) return false;
+        String b = status.backend().toLowerCase(java.util.Locale.ROOT);
+        return b.contains("vmware") || b.contains("qemu");
+    }
+
+    private void setCursorHidden(boolean hide) {
+        if (hide == cursorHidden) return;
+        cursorHidden = hide;
+        GLFW.glfwSetInputMode(minecraft.getWindow().getWindow(), GLFW.GLFW_CURSOR, hide ? GLFW.GLFW_CURSOR_HIDDEN : GLFW.GLFW_CURSOR_NORMAL);
+    }
+
+    @Override
+    public void removed() {
+        setCursorHidden(false);
+        super.removed();
     }
 
     // ------------------------------------------------------------------ input
@@ -227,7 +276,7 @@ public class FocusScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
-        if (overlayVisible() && my < 25) return super.mouseClicked(mx, my, button);
+        if (slide > 0.5f && mx >= pillX && mx < pillX + pillW && my >= pillY() && my < pillY() + PILL_H) return super.mouseClicked(mx, my, button);
         if (!insideVm(mx, my)) return super.mouseClicked(mx, my, button);
         buttons |= rfbBit(button);
         sendPointer(mx, my, true);
@@ -252,8 +301,12 @@ public class FocusScreen extends Screen {
     @Override
     public boolean mouseScrolled(double mx, double my, double scrollX, double scrollY) {
         if (!insideVm(mx, my) || scrollY == 0) return false;
+        // touchpads spam tiny fractional deltas, so only whole notches go to the guest (5 per event max)
+        int steps = wheel.add(scrollY);
         int[] p = toVm(mx, my);
-        Services.PLATFORM.sendToServer(new C2S.Input(vm, C2S.Input.WHEEL, p[0], p[1], buttons, scrollY > 0 ? 1 : -1));
+        for (int i = 0; i < Math.min(5, Math.abs(steps)); i++) {
+            Services.PLATFORM.sendToServer(new C2S.Input(vm, C2S.Input.WHEEL, p[0], p[1], buttons, steps > 0 ? 1 : -1));
+        }
         return true;
     }
 
