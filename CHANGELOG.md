@@ -1,3 +1,10 @@
+# HyperVisor X — 1.2.1
+
+- VMware: VMs no longer fail to start with "The operation was canceled" when the RAM left in the
+  host budget is not a multiple of 4 MB (memory is now rounded to 64 MB blocks), and a failed start
+  shows VMware's own error message.
+- Text-field placeholders are cut to their field and no longer repeat the field's label.
+
 # HyperVisor X — 1.2.0
 
 Security and robustness release after two independent end-to-end reviews. **Recommended for every
