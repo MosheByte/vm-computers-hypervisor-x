@@ -9,7 +9,7 @@ VMware · VirtualBox · QEMU/KVM/WHPX/HVF · zero-install embedded Linux · Mine
 </p>
 
 <p align="center">
-<a href="https://github.com/MosheByte/vm-computers-hypervisor-x/actions"><img src="https://github.com/MosheByte/vm-computers-hypervisor-x/actions/workflows/build_and_release.yml/badge.svg" alt="build"></a>
+<a href="https://github.com/MosheByte/vm-computers-hypervisor-x/actions"><img src="https://github.com/MosheByte/vm-computers-hypervisor-x/actions/workflows/build_and_release.yml/badge.svg" alt="build and release"></a>
 <img src="https://img.shields.io/badge/Minecraft-1.21.1-62B47A" alt="mc">
 <img src="https://img.shields.io/badge/loader-NeoForge%20%7C%20Fabric-5A3E9A" alt="loaders">
 <img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="license">
@@ -29,24 +29,24 @@ and shows up on monitors, ultrawides, laptops and walls of screens.
 
 | | VM Computers 1.4 (2020) | **HyperVisor X 1.2 (2026)** |
 |---|---|---|
-| Minecraft / loader | 1.16.5, Fabric | **1.21.1, NeoForge + Fabric** (Java 21) |
-| Hypervisors | VirtualBox 6.1 only (hand-started `vboxwebsrv`) | **VMware Workstation/Player/Fusion, VirtualBox 6.1/7.x (managed web service), QEMU with KVM/WHPX/HVF, embedded RISC-V MicroVM, host window capture** |
-| Works with Hyper-V / WSL2 on | often broke | **yes** (QEMU WHPX, VMware on WHP) |
-| No hypervisor installed | nothing works | **boots Linux 6.1 in ~1 s on the built-in MicroVM** |
-| Where the VM runs | on each player's own PC, one VM per player | **on the world host/server, any number of VMs, shared by everyone** |
-| Frame capture | full PNG screenshot in a busy loop that locked/unlocked the session every frame | VNC framebuffer (QEMU, VMware), direct rasterizer (MicroVM), GDI `PrintWindow` (capture); VirtualBox still uses screenshots (persistent session + tile diff, off the render thread) |
-| Upload to GPU | PNG decode + **new texture every frame on the render thread** | **dirty 64×64 tiles only, through an asynchronous PBO, trilinear mipmaps + anisotropic, sharp-bilinear shader** |
-| Multiplayer streaming | whole compressed PNG per frame, relayed through the server, **refused above 32 KB** | **delta-tile codec** (XOR deltas + deflate, optional RGB565), per-player bandwidth budget, late joiners get a full frame, only visible screens are streamed |
-| Resolution | whatever the VM window was, blurry | **GPU part decides: 720p, 1080p, 1440p, 4K; span across up to 3 monitors** |
-| Audio | none | **positional audio from QEMU guests**, louder through desk speakers |
-| Input | relative mouse, Escape-juggling | **absolute mouse, every key goes to the VM (incl. Esc/Tab), dedicated release key** |
-| Hardware | 1 case, CPU/RAM/GPU/motherboard, RAM up to 4 GB | Retro PC, **RGB glass tower showing its parts**, **rack cluster up to 64 GB / 32 cores / 4 VMs**, 4 CPUs, 6 RAM sizes, 4 GPUs, HDD/SSD/NVMe/8 TB, USB sticks, GPIO & Wi-Fi cards, blades |
-| Displays | CRT, flat screen, wall TV | 24", CRT, **curved 49" ultrawide, dual & triple arms, seamless video walls up to 32×18 blocks** |
-| Laptops | — | **Pro & Rugged laptops**: use while walking (picture-in-picture), battery, desk charging, Wi-Fi remote desktop |
-| Redstone | — | **GPIO card**: guest programs set/read redstone and move items between chests |
-| Store | basic tablet | **OrbitTech Store 2.0**: categories, search, specs, bundles, supply pod landing — plus **crafting recipes for every part** |
-| OS images | copy ISO into a folder | **OS library**: one-click downloads (every download pinned to a SHA-256), Windows 10/11 presets, in-game file browser + native dialog, `.iso .img .vmdk .vdi .qcow2 .vhd(x)`; disk images are copied per VM, never booted in place |
-| Permissions | owner only | private / others can watch / public + trusted players, operator overrides |
+| | Minecraft / loader | 1.16.5, Fabric | **1.21.1, NeoForge + Fabric** (Java 21) |
+| | Hypervisors | VirtualBox 6.1 only (hand-started `vboxwebsrv`) | **VMware Workstation/Player/Fusion, VirtualBox 6.1/7.x (managed web service), QEMU with KVM/WHPX/HVF, embedded RISC-V MicroVM, host window capture** |
+| | Works with Hyper-V / WSL2 on | often broke | **yes** (QEMU WHPX, VMware on WHP) |
+| | No hypervisor installed | nothing works | **boots Linux 6.1 in ~1 s on the built-in MicroVM** |
+| | Where the VM runs | on each player's own PC, one VM per player | **on the world host/server, any number of VMs, shared by everyone** |
+| | Frame capture | full PNG screenshot in a busy loop that locked/unlocked the session every frame | VNC framebuffer (QEMU, VMware), direct rasterizer (MicroVM), GDI `PrintWindow` (capture); VirtualBox uses screenshots |
+| | Upload to GPU | PNG decode + **new texture every frame on the render thread** | **dirty 64×64 tiles only, through an asynchronous PBO, trilinear mipmaps + anisotropic, sharp-bilinear shader** |
+| | Multiplayer streaming | whole compressed PNG per frame, relayed through the server, **refused above 32 KB** | **delta-tile codec** (XOR deltas + deflate, optional RGB565), per-player bandwidth budgets and dynamic quality |
+| | Resolution | whatever the VM window was, blurry | **GPU part decides: 720p, 1080p, 1440p, 4K; span across up to 3 monitors** |
+| | Audio | none | **positional audio from QEMU guests**, louder through desk speakers |
+| | Input | relative mouse, Escape-juggling | **absolute mouse, every key goes to the VM (incl. Esc/Tab), dedicated release key** |
+| | Hardware | 1 case, CPU/RAM/GPU/motherboard, RAM up to 4 GB | Retro PC, **RGB glass tower showing its parts**, **rack cluster up to 64 GB / 32 cores / 4 VMs**, 4 CPUs, 6 RAM sizes, 4 GPUs, HDD/SSD/NVMe + USB flash drive |
+| | Displays | CRT, flat screen, wall TV | 24", CRT, **curved 49" ultrawide, dual & triple arms, seamless video walls up to 32×18 blocks** |
+| | Laptops | — | **Pro & Rugged laptops**: use while walking (picture-in-picture), battery, desk charging, Wi-Fi remote desktop |
+| | Redstone | — | **GPIO card**: guest programs set/read redstone and move items between chests |
+| | Store | basic tablet | **OrbitTech Store 2.0**: categories, search, specs, bundles, supply pod landing — plus **crafting recipes for every part** |
+| | OS images | copy ISO into a folder | **OS library**: one-click downloads (every download pinned to a SHA-256), Windows 10/11 presets, in-game file browser + native dialog, `.iso .img .vmdk .vdi .qcow2` support |
+| | Permissions | owner only | private / others can watch / public + trusted players, operator overrides |
 
 ---
 
@@ -59,9 +59,9 @@ hardware acceleration is active.
 
 | Engine | Display / input | Extras | Typical picture rate* |
 |---|---|---|---|
-| **VMware** Workstation Pro / Player / Fusion | built-in VNC server (localhost, random password) | snapshots, suspend on world close, GPIO via named pipe, USB sticks | ≈20 FPS measured (Tiny Core desktop, 1024×768) |
+| **VMware** Workstation Pro / Player / Fusion | built-in VNC server (localhost, random password) | snapshots, suspend on world close, GPIO via named pipe, USB sticks | ≈20 FPS measured (Tiny Core) |
 | **VirtualBox** 6.1 / 7.x | managed `vboxwebsrv`, one persistent session, changed tiles only | snapshots, save-state, live ISO swap, GPIO via TCP serial | low (screenshot-based, not measured) |
-| **QEMU** + KVM / WHPX / HVF / TCG | VNC with QEMU extensions (scan codes, audio) | **in-world audio**, snapshots, live ISO swap, NVMe, UEFI (+ swtpm TPM on Linux/macOS) | not measured (bounded by QEMU's VNC refresh) |
+| **QEMU** + KVM / WHPX / HVF / TCG | VNC with QEMU extensions (scan codes, audio) | **in-world audio**, snapshots, live ISO swap, NVMe, UEFI (+ swtpm TPM on Linux/macOS) | not measured (bounded by host) |
 | **Embedded MicroVM** (built-in) | pure-Java RV32IMA core + VT220 terminal | zero install, boots Linux 6.1 + BusyBox, DOOM terminal edition, GPIO via escape codes | redraws on change, up to 60 FPS |
 | **Host window capture** (Windows) | GDI `PrintWindow`, view only, opt-in | show Discord/VS Code/OBS/a browser on a screen | up to 60 FPS (not measured) |
 
