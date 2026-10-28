@@ -1,6 +1,6 @@
 # Notices and credits
 
-**VM Computers: HyperVisor X** — Copyright (C) 2026 MosheBarami and contributors.
+**HyperVisor X** — Copyright (C) 2026 MosheBarami and contributors.
 
 This program is free software: you can redistribute it and/or modify it under the terms of the
 GNU General Public License as published by the Free Software Foundation, either version 3 of the
@@ -25,7 +25,12 @@ so that it stays compatible with, and gives back to, the original project's comm
 ## Downloaded at runtime (not distributed with the mod)
 
 * Linux / DOOM kernel images for the embedded MicroVM from
-  <https://github.com/cnlohr/mini-rv32ima-images> (GPL v2, Linux kernel + BusyBox; DOOM shareware data).
+  <https://github.com/cnlohr/mini-rv32ima-images> (Linux kernel + BusyBox under the GPL v2). They are
+  **not bundled** in the mod; the game downloads them on first use from a pinned commit and checks their
+  SHA-256.
+* The DOOM image contains the **shareware** episode of DOOM (DOOM1.WAD), © id Software, which id's
+  shareware licence allows to be copied unmodified and free of charge; it is not open-source and is not
+  covered by HyperVisor X's GPL. HyperVisor X never sells it or includes it in its own files.
 * Operating systems from the OS library are fetched from their official mirrors (Alpine Linux,
   Tiny Core Linux, Debian, FreeDOS, ReactOS) under their own licenses. Windows is never
   downloaded automatically; the presets link to Microsoft's official download pages.

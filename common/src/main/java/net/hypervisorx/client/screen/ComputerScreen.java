@@ -27,10 +27,11 @@ import java.util.Locale;
  * hypervisor, OS image and sharing on the right, and power the machine on.
  */
 public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
-    private static final int W = 356;
     private static final int H = 236;
     private static final int RIGHT_X = 184;
-    private static final int RIGHT_W = 166;
+    /** shrinks to fit the window instead of getting clipped (MC guarantees at least 320 GUI px). */
+    private int W = 356;
+    private int RIGHT_W = 166;
     private static final List<String> BACKENDS = List.of("auto", "vmware", "virtualbox", "qemu", "embedded", "hostcapture");
 
     private S2C.HostInfo info;
@@ -63,6 +64,9 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
 
     @Override
     protected void init() {
+        W = Math.max(320, Math.min(356, width - 4));
+        RIGHT_W = W - RIGHT_X - 6;
+        imageWidth = W;
         super.init();
         Services.PLATFORM.sendToServer(new C2S.LibraryAction(C2S.LibraryAction.REFRESH, ""));
         int x = leftPos + RIGHT_X + 6;
@@ -109,7 +113,8 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
         addRenderableWidget(target);
         y += 16;
         access = addRenderableWidget(new UiKit.ChoiceButton<>(x, y, half, 14, "", Arrays.asList(VmRecord.Access.values()), VmRecord.Access.PRIVATE,
-                v -> Component.translatable("hypervisorx.access." + v.name().toLowerCase(Locale.ROOT)).getString(), v -> fieldsDirty = true));
+                v -> Component.translatable("hypervisorx.access." + v.name().toLowerCase(Locale.ROOT) + ".short").getString(), v -> fieldsDirty = true));
+        access.tip(() -> Component.translatable("hypervisorx.access." + access.value().name().toLowerCase(Locale.ROOT)));
         span = addRenderableWidget(new UiKit.ChoiceButton<>(x + half + 3, y, fw - half - 3, 14, "", List.of(1, 2, 3), 1,
                 v -> Component.translatable("hypervisorx.ui.span", v).getString(), v -> fieldsDirty = true));
         y += 16;
@@ -371,8 +376,20 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
         // nothing here, window chrome and section captions get drawn in renderBg
     }
 
+    /** the target field only matters for the embedded MicroVM and host window capture. */
+    private boolean targetUsed() {
+        String b = backend == null ? "auto" : backend.value();
+        return b.equals("embedded") || b.equals("hostcapture") || b.equals("auto") && current() != null && "embedded".equals(current().backend());
+    }
+
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        if (target != null) {
+            boolean used = targetUsed();
+            target.setEditable(used);
+            target.setHint(Component.translatable(used ? "hypervisorx.ui.target_hint" : "hypervisorx.ui.target_unused"));
+            target.setTextColor(used ? 0xE0E0E0 : 0x5B6474);
+        }
         super.render(g, mouseX, mouseY, partialTick);
         renderTooltip(g, mouseX, mouseY);
         if (hoveredSlot != null && !hoveredSlot.hasItem() && hoveredSlot instanceof ComputerMenu.PartSlot ps) {

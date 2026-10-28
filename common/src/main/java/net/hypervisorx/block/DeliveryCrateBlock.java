@@ -48,8 +48,20 @@ public class DeliveryCrateBlock extends BaseEntityBlock {
     @Override
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
         if (level.isClientSide) return InteractionResult.SUCCESS;
+        if (level.getBlockEntity(pos) instanceof net.hypervisorx.block.entity.CrateBlockEntity crate && !crate.mayAccess(player)) {
+            player.displayClientMessage(net.minecraft.network.chat.Component.translatable("hypervisorx.msg.crate_private")
+                    .withStyle(net.minecraft.ChatFormatting.RED), true);
+            return InteractionResult.CONSUME;
+        }
         if (level.getBlockEntity(pos) instanceof MenuProvider provider) player.openMenu(provider);
         return InteractionResult.CONSUME;
+    }
+
+    /** And no mining someone else's fresh delivery open either. */
+    @Override
+    protected float getDestroyProgress(BlockState state, Player player, net.minecraft.world.level.BlockGetter level, BlockPos pos) {
+        if (level.getBlockEntity(pos) instanceof net.hypervisorx.block.entity.CrateBlockEntity crate && !crate.mayAccess(player)) return 0f;
+        return super.getDestroyProgress(state, player, level, pos);
     }
 
     @Override

@@ -105,7 +105,11 @@ public final class VmwareBackend implements HypervisorBackend {
                 case "fusion" -> "Fusion";
                 default -> "Player";
             };
-            return BackendStatus.ok(version, inst.get().vmrun().toString(), "Ready (VMware " + product + ", uses Hyper-V/WHP when Windows needs it).", true);
+            String productVersion = productVersion();
+            boolean hyperV = Processes.WINDOWS && windowsHypervisorPresent();
+            String shown = productVersion.isEmpty() ? "vmrun " + version : productVersion;
+            return BackendStatus.ok(shown, inst.get().vmrun().toString(), "Ready (VMware " + product
+                    + (hyperV ? ", running on Hyper-V through the Windows Hypervisor Platform" : ", hardware virtualization (VT-x/AMD-V)") + ").", true);
         } catch (IOException e) {
             return BackendStatus.unavailable("vmrun failed to run: " + e.getMessage());
         }
@@ -128,11 +132,20 @@ public final class VmwareBackend implements HypervisorBackend {
                 Processes.Result r = Processes.run(300, inst.vdiskmanager().toString(), "-c", "-s", spec.diskGb() + "GB", "-a", "lsilogic", "-t", "0", disk.toString());
                 if (!r.ok()) throw new BackendException("vmware-vdiskmanager failed: " + r.output());
             }
-            vncPort = Processes.allocatePort(5970, 6099);
-            String password = randomPassword();
             String pipe = Processes.WINDOWS ? "\\\\.\\pipe\\hvx-gpio-" + spec.id().toString().substring(0, 8)
                     : spec.vmDir().resolve("gpio.sock").toString();
-            writeVmx(spec, vmxPath, disk, vncPort, password, pipe);
+            String password;
+            if (isSuspended(spec.vmDir()) && Files.exists(vmxPath)) {
+                // resuming a suspended VM: the .vmx can't change (memory size, devices), so reuse its VNC settings
+                VmxFile old = VmxFile.load(vmxPath);
+                vncPort = Integer.parseInt(old.get("RemoteDisplay.vnc.port"));
+                password = old.get("RemoteDisplay.vnc.password");
+                Processes.reservePort(vncPort);
+            } else {
+                vncPort = Processes.allocatePort(5970, 6099);
+                password = randomPassword();
+                writeVmx(spec, vmxPath, disk, vncPort, password, pipe);
+            }
 
             Processes.Result start = Processes.run(240, inst.vmrun().toString(), "-T", inst.hostType(), "start", vmxPath.toString(), "nogui");
             if (!start.ok()) {
@@ -150,11 +163,49 @@ public final class VmwareBackend implements HypervisorBackend {
         }
     }
 
+    /** Installed Workstation/Player version ("26H1u1", "17.6.2"), or "" if we can't read it. */
+    private static String productVersion() {
+        try {
+            if (Processes.WINDOWS) {
+                for (String key : List.of("HKLM\\SOFTWARE\\WOW6432Node\\VMware, Inc.\\VMware Workstation",
+                        "HKLM\\SOFTWARE\\VMware, Inc.\\VMware Workstation", "HKLM\\SOFTWARE\\WOW6432Node\\VMware, Inc.\\VMware Player")) {
+                    Processes.Result r = Processes.run(10, "reg", "query", key, "/v", "ProductVersion");
+                    Matcher m = Pattern.compile("ProductVersion\\s+REG_SZ\\s+(\\S+)").matcher(r.output());
+                    if (m.find()) return m.group(1);
+                }
+            } else if (Processes.LINUX) {
+                Processes.Result r = Processes.run(10, "vmware", "-v");
+                Matcher m = Pattern.compile("VMware \\w+ (\\S+)").matcher(r.output());
+                if (m.find()) return m.group(1);
+            }
+        } catch (IOException ignored) {
+        }
+        return "";
+    }
+
+    private static boolean windowsHypervisorPresent() {
+        try {
+            Processes.Result r = Processes.run(15, "powershell", "-NoProfile", "-Command", "(Get-CimInstance Win32_ComputerSystem).HypervisorPresent");
+            return r.output().trim().equalsIgnoreCase("true");
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
     private static String randomPassword() {
         SecureRandom rnd = new SecureRandom();
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 8; i++) sb.append(PW_CHARS.charAt(rnd.nextInt(PW_CHARS.length())));
         return sb.toString();
+    }
+
+    /** A suspended VMware VM keeps its memory image in a .vmss next to the .vmx. */
+    static boolean isSuspended(Path vmDir) {
+        try (var files = Files.list(vmDir)) {
+            return files.anyMatch(p -> p.getFileName().toString().toLowerCase(java.util.Locale.ROOT).endsWith(".vmss"));
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     static void writeVmx(VmLaunchSpec spec, Path vmxPath, Path disk, int vncPort, String password, String pipe) throws IOException {

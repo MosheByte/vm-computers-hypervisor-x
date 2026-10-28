@@ -25,9 +25,15 @@ import java.util.zip.DataFormatException;
 public final class ScreenTextureManager {
     private static final Map<UUID, Entry> ENTRIES = new ConcurrentHashMap<>();
 
+    /** How many packets can wait for decode before we give up and ask the server for a fresh keyframe. */
+    private static final int MAX_BACKLOG = 48;
+
     private static final class Entry {
         final ScreenTexture texture;
         final ExecutorService decoder;
+        final java.util.concurrent.atomic.AtomicInteger pending = new java.util.concurrent.atomic.AtomicInteger();
+        volatile boolean resync;
+        volatile long lastPacket = System.currentTimeMillis();
         volatile boolean registered;
 
         Entry(UUID vm) {
@@ -51,12 +57,26 @@ public final class ScreenTextureManager {
 
     public static void onReset(S2C.ScreenReset p) {
         Entry e = entry(p.vm());
+        e.resync = false;
         e.decoder.execute(() -> e.texture.reset(p.epoch(), p.width(), p.height()));
     }
 
     public static void onTiles(S2C.ScreenTiles p) {
         Entry e = entry(p.vm());
+        e.lastPacket = System.currentTimeMillis();
+        if (e.resync) return; // deltas for a picture we already tossed, a keyframe comes after the reset
+        if (e.pending.get() > MAX_BACKLOG) {
+            // decoder can't keep up (slow client): dump the backlog and re-subscribe to get a keyframe
+            e.resync = true;
+            ((ThreadPoolExecutor) e.decoder).getQueue().clear();
+            e.pending.set(0);
+            net.hypervisorx.platform.Services.PLATFORM.sendToServer(new net.hypervisorx.network.C2S.Watch(java.util.List.of(), java.util.List.of(p.vm())));
+            net.hypervisorx.platform.Services.PLATFORM.sendToServer(new net.hypervisorx.network.C2S.Watch(java.util.List.of(p.vm()), java.util.List.of()));
+            return;
+        }
+        e.pending.incrementAndGet();
         e.decoder.execute(() -> {
+            e.pending.decrementAndGet();
             for (EncodedTile t : p.tiles()) {
                 try {
                     int expected = t.w() * t.h() * TileCodec.bytesPerPixel(t.mode());
@@ -95,7 +115,7 @@ public final class ScreenTextureManager {
         for (Iterator<Map.Entry<UUID, Entry>> it = ENTRIES.entrySet().iterator(); it.hasNext(); ) {
             Map.Entry<UUID, Entry> me = it.next();
             Entry e = me.getValue();
-            if (now - e.texture.lastRendered() > 30_000) {
+            if (now - e.texture.lastRendered() > 30_000 && now - e.lastPacket > 30_000) {
                 it.remove();
                 release(e);
                 continue;

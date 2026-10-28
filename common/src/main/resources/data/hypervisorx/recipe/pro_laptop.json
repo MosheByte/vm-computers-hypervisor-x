@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "IMI",
+    "IKI",
+    "IPI"
+  ],
+  "key": {
+    "I": {
+      "item": "minecraft:iron_ingot"
+    },
+    "M": {
+      "item": "hypervisorx:monitor"
+    },
+    "K": {
+      "item": "hypervisorx:mechanical_keyboard"
+    },
+    "P": {
+      "item": "hypervisorx:cpu_orbitcore_q4"
+    }
+  },
+  "result": {
+    "id": "hypervisorx:pro_laptop",
+    "count": 1
+  }
+}

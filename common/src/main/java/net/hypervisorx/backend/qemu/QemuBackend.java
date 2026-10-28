@@ -149,6 +149,9 @@ public final class QemuBackend implements HypervisorBackend {
         int vncPort = -1;
         int qmpPort = -1;
         int gpioPort = -1;
+        String bindHost = "127.0.0.1";
+        Path qmpSocket = null;
+        String vncPassword = "";
         try {
             Files.createDirectories(spec.vmDir());
             Path disk = spec.vmDir().resolve("disk.qcow2");
@@ -156,12 +159,25 @@ public final class QemuBackend implements HypervisorBackend {
                 Processes.Result r = Processes.run(120, qemuImg.toString(), "create", "-f", "qcow2", disk.toString(), spec.diskGb() + "G");
                 if (!r.ok()) throw new BackendException("qemu-img create failed: " + r.output());
             }
+            // VM got suspended when the world closed? resume it from its internal qcow2 snapshot
+            boolean resume = spec.existingDisk() == null && Files.exists(disk)
+                    && Processes.run(30, qemuImg.toString(), "snapshot", "-l", disk.toString()).output().contains(QemuInstance.SUSPEND_TAG);
             String accelHelp = Processes.run(15, qemu.toString(), "-accel", "help").output().toLowerCase(Locale.ROOT);
             List<String> accel = accelerators(ctx, accelHelp);
 
+            // gotcha: QEMU's user-mode network lets guests reach the host's 127.0.0.1 via 10.0.2.2. So every
+            // control/display/serial socket listens on a private loopback address (or a unix socket on macOS,
+            // which only has 127.0.0.1) and the display also needs a random password on top.
+            bindHost = privateLoopback();
             vncPort = Processes.allocatePort(5950, 6099);
-            qmpPort = Processes.allocatePort(47100, 47999);
+            if (Processes.MAC) {
+                qmpSocket = Path.of(System.getProperty("java.io.tmpdir"), "hvx-qmp-" + spec.id().toString().substring(0, 8) + ".sock");
+                Files.deleteIfExists(qmpSocket);
+            } else {
+                qmpPort = Processes.allocatePort(47100, 47999);
+            }
             if (spec.gpio()) gpioPort = Processes.allocatePort(48100, 48999);
+            vncPassword = randomPassword();
 
             boolean legacy = spec.guestOs() == GuestOs.DOS;
             List<String> cmd = new ArrayList<>();
@@ -184,7 +200,7 @@ public final class QemuBackend implements HypervisorBackend {
             cmd.addAll(List.of("-vga", "none", "-device", "VGA,vgamem_mb=" + vgaMemMb(spec.width(), spec.height())
                     + ",edid=on,xres=" + spec.width() + ",yres=" + spec.height()));
             cmd.addAll(List.of("-display", "none"));
-            String vnc = "127.0.0.1:" + (vncPort - 5900);
+            String vnc = bindHost + ":" + (vncPort - 5900) + ",password=on";
             if (spec.audio()) {
                 cmd.addAll(List.of("-audiodev", "none,id=snd0"));
                 if (legacy) {
@@ -195,7 +211,8 @@ public final class QemuBackend implements HypervisorBackend {
                 vnc += ",audiodev=snd0";
             }
             cmd.addAll(List.of("-vnc", vnc));
-            cmd.addAll(List.of("-qmp", "tcp:127.0.0.1:" + qmpPort + ",server=on,wait=off"));
+            cmd.addAll(List.of("-qmp", qmpSocket != null ? "unix:" + opt(qmpSocket) + ",server=on,wait=off"
+                    : "tcp:" + bindHost + ":" + qmpPort + ",server=on,wait=off"));
             cmd.addAll(List.of("-monitor", "none"));
             cmd.addAll(List.of("-pidfile", spec.vmDir().resolve("qemu.pid").toString()));
             if (spec.guestOs().windowsClock()) cmd.addAll(List.of("-rtc", "base=localtime"));
@@ -248,16 +265,18 @@ public final class QemuBackend implements HypervisorBackend {
                 }
             }
             if (gpioPort > 0) {
-                cmd.addAll(List.of("-serial", "tcp:127.0.0.1:" + gpioPort + ",server=on,wait=off"));
+                cmd.addAll(List.of("-serial", "tcp:" + bindHost + ":" + gpioPort + ",server=on,wait=off"));
             } else {
                 cmd.addAll(List.of("-serial", "none"));
             }
             cmd.addAll(List.of("-parallel", "none"));
+            if (resume) cmd.addAll(List.of("-loadvm", QemuInstance.SUSPEND_TAG));
 
             Path log = spec.vmDir().resolve("qemu.log");
             Process process = Processes.spawn(cmd, spec.vmDir(), log);
             Files.writeString(spec.vmDir().resolve("last-command.txt"), String.join(" ", cmd));
-            QemuInstance instance = new QemuInstance(spec, process, log, vncPort, qmpPort, gpioPort, String.join(" ", notes));
+            QemuInstance instance = new QemuInstance(spec, process, log, bindHost, vncPort, qmpPort, qmpSocket, vncPassword, gpioPort,
+                    String.join(" ", notes));
             instance.connect();
             return instance;
         } catch (IOException e) {
@@ -266,6 +285,25 @@ public final class QemuBackend implements HypervisorBackend {
             if (gpioPort > 0) Processes.releasePort(gpioPort);
             throw new BackendException("QEMU failed to start: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Loopback address slirp never forwards guest traffic to (it only maps 10.0.2.2 to 127.0.0.1).
+     * Windows and Linux answer on all of 127/8, macOS only has 127.0.0.1.
+     */
+    static String privateLoopback() {
+        if (Processes.MAC) return "127.0.0.1";
+        java.util.concurrent.ThreadLocalRandom r = java.util.concurrent.ThreadLocalRandom.current();
+        return "127.43." + r.nextInt(1, 255) + "." + r.nextInt(1, 255);
+    }
+
+    /** Random 8-char VNC password (RFB won't use more than 8 anyway). */
+    static String randomPassword() {
+        String alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+        java.security.SecureRandom r = new java.security.SecureRandom();
+        StringBuilder sb = new StringBuilder(8);
+        for (int i = 0; i < 8; i++) sb.append(alphabet.charAt(r.nextInt(alphabet.length())));
+        return sb.toString();
     }
 
     /** Escapes a path for QEMU's comma-separated options (commas get doubled). */

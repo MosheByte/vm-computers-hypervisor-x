@@ -25,18 +25,28 @@ import java.util.zip.ZipInputStream;
  */
 public final class EmbeddedBackend implements HypervisorBackend {
     public static final String ID = "embedded";
+    private static final String PINNED = "https://github.com/cnlohr/mini-rv32ima-images/raw/7da8c6e486b7d510426b5c2283cd338abcf04eb7/images/";
 
     /** Kernel images from the mini-rv32ima project (Linux 6.1, BusyBox userland, GPL). */
     public enum KernelImage {
-        LINUX("linux-6.1.14-rv32nommu-cnl-1", "https://github.com/cnlohr/mini-rv32ima-images/raw/master/images/linux-6.1.14-rv32nommu-cnl-1.zip"),
-        DOOM("emdoom-max-order-14", "https://github.com/cnlohr/mini-rv32ima-images/raw/master/images/Image-emdoom-MAX_ORDER_14.zip");
+        // pinned to one commit + SHA-256 checked, the branch tip could change under us
+        LINUX("linux-6.1.14-rv32nommu-cnl-1", PINNED + "linux-6.1.14-rv32nommu-cnl-1.zip",
+                "add651195348b538c309becb39c5f8ef4f9d15ec275a2954b02016fc38091393"),
+        DOOM("emdoom-max-order-14", PINNED + "Image-emdoom-MAX_ORDER_14.zip",
+                "38dd7e58abb70cce64a6961807882026ee384d1ef9fb54d81127ed1fe915ed27");
 
         private final String folder;
         private final String url;
+        private final String sha256;
 
-        KernelImage(String folder, String url) {
+        KernelImage(String folder, String url, String sha256) {
             this.folder = folder;
             this.url = url;
+            this.sha256 = sha256;
+        }
+
+        public String sha256() {
+            return sha256;
         }
 
         public String folder() {
@@ -83,7 +93,11 @@ public final class EmbeddedBackend implements HypervisorBackend {
         try {
             Files.createDirectories(target.getParent());
             Path zip = target.resolveSibling("download.zip");
-            Downloads.download(image.url(), zip, progress);
+            String sha = Downloads.download(image.url(), zip, progress);
+            if (!sha.equalsIgnoreCase(image.sha256())) {
+                Files.deleteIfExists(zip);
+                throw new IOException("kernel image checksum mismatch (expected " + image.sha256() + ", got " + sha + ")");
+            }
             try (InputStream in = Files.newInputStream(zip); ZipInputStream zin = new ZipInputStream(in)) {
                 ZipEntry e;
                 while ((e = zin.getNextEntry()) != null) {

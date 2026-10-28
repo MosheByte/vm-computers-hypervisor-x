@@ -125,12 +125,16 @@ public final class AutoTest {
                     }
                 }
                 case 3 -> {
+                    if (ticks == 2) mc.setScreen(null);
                     if (ticks == 2) teleport(mc, -1.0, 0.6, 0.6, 180f, 18f);
                     if (ticks == 50) shot(mc, "hvx-closeup.png");
+                    if (ticks == 52) mc.setScreen(null);
                     if (ticks == 52) teleport(mc, -3.3, 0.2, -2.1, -128f, 22f);
                     if (ticks == 100) shot(mc, "hvx-tower.png");
+                    if (ticks == 102) mc.setScreen(null);
                     if (ticks == 102) teleport(mc, 3.6, 0.6, -2.6, -142f, 20f);
                     if (ticks == 150) shot(mc, "hvx-rack.png");
+                    if (ticks == 152) mc.setScreen(null);
                     if (ticks == 152) teleport(mc, -4.0, 0.2, -1.9, 180f, 32f);
                     if (ticks == 200) shot(mc, "hvx-desk.png");
                     if (ticks == 202) teleport(mc, -1.0, 0.6, 0.6, 180f, 18f);
@@ -207,7 +211,7 @@ public final class AutoTest {
                             VmManager m = VmManager.get();
                             m.data().changed();
                             vmwareVm = r.id;
-                            Component err = m.start(r, gaming.builtSpec(), gaming);
+                            Component err = m.startUnchecked(r, gaming.builtSpec(), gaming);
                             log("VMware start: " + (err == null ? "ok" : err.getString()) + " vm=" + r.id + " pc=" + pc);
                         });
                     }

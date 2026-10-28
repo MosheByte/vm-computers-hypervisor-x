@@ -91,14 +91,29 @@ public final class Processes {
         return p;
     }
 
+    /** UNC shares, {@code //host/...} and URL-ish strings. we never run these or use them as program folders. */
+    public static boolean isNetworkPath(String s) {
+        if (s == null) return false;
+        String t = s.strip();
+        // "\\server\share", "\\?\UNC\..." and "//server/share" all start with two slashes
+        return t.startsWith("\\\\") || t.startsWith("//") || t.contains("://");
+    }
+
     /** finds an executable: the override first, then PATH, then the usual install folders. */
     public static Optional<Path> find(String override, String name, List<String> knownLocations) {
-        if (override != null && !override.isBlank()) {
-            Path p = Path.of(override.trim());
-            if (Files.isRegularFile(p)) return Optional.of(p);
-            if (Files.isDirectory(p)) {
-                Path inDir = p.resolve(exe(name));
-                if (Files.isRegularFile(inDir)) return Optional.of(inDir);
+        if (override != null && !override.isBlank() && !isNetworkPath(override)) {
+            try {
+                Path p = Path.of(override.trim());
+                // override has to be a local absolute path to the right program (or the folder it's in)
+                if (p.isAbsolute()) {
+                    if (Files.isRegularFile(p) && p.getFileName().toString().equalsIgnoreCase(exe(name))) return Optional.of(p);
+                    if (Files.isDirectory(p)) {
+                        Path inDir = p.resolve(exe(name));
+                        if (Files.isRegularFile(inDir)) return Optional.of(inDir);
+                    }
+                }
+            } catch (java.nio.file.InvalidPathException ignored) {
+                // bad path, just try PATH and the known spots
             }
         }
         String path = System.getenv("PATH");
@@ -141,6 +156,11 @@ public final class Processes {
             }
         }
         throw new IOException("No free TCP port between " + from + " and " + to);
+    }
+
+    /** a resumed VM already has this port, so new allocations skip it. */
+    public static void reservePort(int port) {
+        RESERVED_PORTS.add(port);
     }
 
     public static void releasePort(int port) {

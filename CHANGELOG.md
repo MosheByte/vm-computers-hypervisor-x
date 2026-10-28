@@ -1,4 +1,65 @@
-# VM Computers: HyperVisor X — 1.1.0
+# HyperVisor X — 1.2.0
+
+Security and robustness release after two independent end-to-end reviews. **Recommended for every
+server.** Renamed to *HyperVisor X* (an unofficial successor to Delta2Force's VM Computers).
+
+## Security
+- Program paths, host window capture and the VirtualBox web-service setting can only be changed at
+  the host machine or in the config file, never by operators over the network; UNC/SMB/URL paths are
+  never executed and an override must be the expected program.
+- QEMU: QMP, VNC and the GPIO serial port listen on a private loopback address guests cannot reach
+  (unix socket for QMP on macOS) and VNC needs a random per-boot password.
+- VirtualBox: the web service runs with a temporary random `VBoxAuthSimple` account; the previous
+  setting is restored when the world closes (or on the next start after a crash), leftover
+  `vboxwebsrv` processes are cleaned up, and guests cannot reach the host's loopback.
+- Host window capture and files linked from the host's PC are operator-only.
+- VM names and other text are stripped of control characters (no `.vmx` key injection).
+- Every player-triggered start (PC, rack, laptop, focus screen) checks permissions and quotas:
+  running VMs and RAM per player, `minPermissionForHostBackends` (default: operators).
+- The server decides which screens a player may receive (distance, ownership, max 6 streams).
+- Input, screen buttons, library and store requests are rate-limited; the store needs the tablet in
+  hand, has a cooldown and at most two pods in flight.
+- Downloads are pinned to SHA-256 (Tiny Core 16.2, FreeDOS 1.4, ReactOS via GitHub digests, embedded
+  kernels from a pinned commit); redirects never downgrade https to http.
+
+## Lifecycle & data
+- VM disks live in the world save (`<world>/hypervisorx/vms/`); deleting a VM removes its files even
+  when it is off; orphaned folders are cleaned at start; `/hvx gc <days> [confirm]`.
+- Cancelling a boot (force off, delete, world close) no longer leaves a hypervisor running.
+- Library disk images are copied per VM instead of being booted (and modified) in place.
+- Suspend/resume: VMware keeps its `.vmx` untouched while suspended, VirtualBox skips reconfiguring a
+  saved machine, QEMU suspends into an internal qcow2 snapshot and resumes with `-loadvm`.
+- VMware without VMware Tools: "Shut down" now powers off after 10 s instead of hanging.
+- Breaking a computer asks the guest to shut down first and only pulls the plug after a minute.
+- Server racks keep their parts inside the item like cases; delivery crates belong to the buyer for
+  ten minutes; pods never fall into the void or land where the buyer could not build.
+- `/hvx reload` really re-reads the config file.
+
+## Gameplay
+- 39 crafting recipes: every computer, display, laptop and part can be crafted from vanilla materials,
+  each tier upgrading the previous one.
+- Bundles are always 10 % cheaper than their parts; currency rebalanced (emerald 6, diamond 16,
+  netherite 64) and overpayment is returned as change.
+
+## Interface & art
+- Crisp small text at every GUI scale, readable section labels, responsive PC screen (320 px),
+  short access labels with full tooltips, hint when the target field does not apply, coin prices,
+  lighter product wells, opaque focus bar, keys released when the window loses focus.
+- Inventory models for the curved ultrawide and monitor arms now show their panels; GPU models have
+  a slot bracket; subtler retro turbo display; CRT glass with depth.
+
+## Performance
+- One shared `vmrun list` for all VMware VMs; VirtualBox state through the open session and
+  unchanged screenshots skipped; bounded input queue; client decoder drops a backlog and asks for a
+  keyframe; no per-upload allocations; the singleplayer stream path no longer caches raw tiles.
+
+## Fixes
+- RISC-V core: byte and half-word accesses may use the last bytes of RAM.
+- Version ranges: Minecraft 1.21.1 exactly, NeoForge 21.1.200+, Fabric API 0.100+.
+- Release jars no longer contain the developer smoke test.
+- CI publishes the tested jars and pins the boot-test image by checksum.
+
+# HyperVisor X — 1.1.0
 
 Visual overhaul and a verified VMware path.
 
@@ -22,7 +83,7 @@ Visual overhaul and a verified VMware path.
 - VMware Workstation Pro **26H1u1** verified end to end (install, detection, VM creation, VNC
   streaming, 1024x768 desktop in-game); status text no longer shows a stale resolution.
 
-# VM Computers: HyperVisor X — 1.0.0
+# HyperVisor X — 1.0.0
 
 First release for Minecraft **1.21.1** on **NeoForge** and **Fabric** (Java 21).
 

@@ -65,7 +65,33 @@ public final class ImageLibrary {
         return HvxConfig.dataRoot().resolve("linked-images.json");
     }
 
+    private static volatile Map<String, String> linkedCache;
+    private static volatile long linkedCacheTime;
+    private static volatile List<S2C.ImageEntry> listCache;
+    private static volatile long listCacheTime;
+
     private static Map<String, String> linked() {
+        long now = System.currentTimeMillis();
+        Map<String, String> c = linkedCache;
+        if (c == null || now - linkedCacheTime >= 2000) {
+            c = readLinked();
+            linkedCache = c;
+            linkedCacheTime = now;
+        }
+        return new LinkedHashMap<>(c);
+    }
+
+    private static void invalidate() {
+        linkedCache = null;
+        listCache = null;
+    }
+
+    /** True if the name points to a file the host linked from their own PC (only ops can boot those). */
+    public static boolean isLinked(String name) {
+        return name != null && !name.isBlank() && linked().containsKey(name);
+    }
+
+    private static Map<String, String> readLinked() {
         try {
             if (Files.exists(linkFile())) {
                 Map<String, String> m = HvxConfig.GSON.fromJson(Files.readString(linkFile(), StandardCharsets.UTF_8),
@@ -81,6 +107,36 @@ public final class ImageLibrary {
     private static void saveLinked(Map<String, String> m) throws IOException {
         Files.createDirectories(linkFile().getParent());
         Files.writeString(linkFile(), HvxConfig.GSON.toJson(m), StandardCharsets.UTF_8);
+        invalidate();
+    }
+
+    /** Library names are plain file names: no separators, no "..", nothing Windows chokes on. */
+    public static boolean isValidName(String name) {
+        if (name == null || name.isBlank() || name.length() > 200) return false;
+        if (name.contains("/") || name.contains("\\") || name.contains("..") || name.startsWith(".")) return false;
+        for (char ch : name.toCharArray()) {
+            if (ch < 32 || "<>:\"|?*".indexOf(ch) >= 0) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Copies a library disk image into a VM's folder so the template never gets touched and two VMs
+     * never share a disk. VMDK descriptors bring their extent files along ({@code name-s001.vmdk},
+     * {@code name-flat.vmdk}, ...).
+     */
+    public static void copyDiskImage(Path source, Path target) throws IOException {
+        Files.createDirectories(target.getParent());
+        Path tmp = target.resolveSibling(target.getFileName() + ".part");
+        Files.copy(source, tmp, StandardCopyOption.REPLACE_EXISTING);
+        String base = source.getFileName().toString();
+        if (base.toLowerCase(Locale.ROOT).endsWith(".vmdk") && Files.size(source) < 1 << 20) {
+            String stem = base.substring(0, base.length() - 5);
+            try (DirectoryStream<Path> ds = Files.newDirectoryStream(source.getParent(), stem + "-*.vmdk")) {
+                for (Path extent : ds) Files.copy(extent, target.getParent().resolve(extent.getFileName()), StandardCopyOption.REPLACE_EXISTING);
+            }
+        }
+        Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
     }
 
     public static String extension(String name) {
@@ -92,7 +148,18 @@ public final class ImageLibrary {
         return DISK_EXTENSIONS.contains(extension(name));
     }
 
+    /** Library listing, cached for 2s since it stats files (maybe on network drives). */
     public static List<S2C.ImageEntry> list() {
+        long now = System.currentTimeMillis();
+        List<S2C.ImageEntry> c = listCache;
+        if (c != null && now - listCacheTime < 2000) return c;
+        c = List.copyOf(scan());
+        listCache = c;
+        listCacheTime = now;
+        return c;
+    }
+
+    private static List<S2C.ImageEntry> scan() {
         List<S2C.ImageEntry> out = new ArrayList<>();
         try (DirectoryStream<Path> ds = Files.newDirectoryStream(dir())) {
             for (Path p : ds) {
@@ -120,14 +187,19 @@ public final class ImageLibrary {
     /** Library name to a file on the host, or null. Names can't escape the images folder. */
     public static Path resolve(String name) {
         if (name == null || name.isBlank()) return null;
-        String linkedPath = linked().get(name);
-        if (linkedPath != null) {
-            Path p = Path.of(linkedPath);
+        try {
+            String linkedPath = linked().get(name);
+            if (linkedPath != null) {
+                Path p = Path.of(linkedPath);
+                return Files.isRegularFile(p) ? p : null;
+            }
+            if (!isValidName(name)) return null;
+            Path p = dir().resolve(name).normalize();
+            if (!p.startsWith(dir().normalize())) return null;
             return Files.isRegularFile(p) ? p : null;
+        } catch (java.nio.file.InvalidPathException e) {
+            return null;
         }
-        Path p = dir().resolve(name).normalize();
-        if (!p.startsWith(dir().normalize())) return null;
-        return Files.isRegularFile(p) ? p : null;
     }
 
     /** Registers a file that's already on the singleplayer host's PC. No copy, multi-GB ISOs stay where they are. */

@@ -1,0 +1,20 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "MMM",
+    " I "
+  ],
+  "key": {
+    "M": {
+      "item": "hypervisorx:monitor"
+    },
+    "I": {
+      "item": "minecraft:iron_ingot"
+    }
+  },
+  "result": {
+    "id": "hypervisorx:triple_monitor_arm",
+    "count": 1
+  }
+}

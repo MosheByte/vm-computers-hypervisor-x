@@ -145,10 +145,12 @@ public final class HostService {
         VmManager m = mgr();
         VmRecord r = m.record(host.vmId(slot));
         if (r != null) return r;
+        String ownerName = host.ownerId() != null && host.ownerName() != null && !host.ownerName().isEmpty()
+                ? host.ownerName() : p.getGameProfile().getName();
         String name = switch (host.hostKind()) {
             case RACK -> "Server VM " + (slot + 1);
-            case LAPTOP -> p.getGameProfile().getName() + "'s Laptop";
-            case CASE -> p.getGameProfile().getName() + "'s PC";
+            case LAPTOP -> ownerName + "'s Laptop";
+            case CASE -> ownerName + "'s PC";
         };
         r = m.createRecord(host.hostKind(), name, host.ownerId() != null && !host.ownerId().equals(p.getUUID()) ? null : p);
         if (r.owner == null && host.ownerId() != null) {
@@ -175,9 +177,21 @@ public final class HostService {
 
     // ---------------------------------------------------------------- actions from the screen
 
+    private static final java.util.Map<java.util.UUID, net.hypervisorx.util.RateLimiter> ACTION_LIMITS = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** Screen buttons: max 8 actions a second per player (any of them can hit disks or spawn processes). */
+    static boolean allowAction(ServerPlayer p) {
+        if (ACTION_LIMITS.size() > 512) ACTION_LIMITS.clear();
+        return ACTION_LIMITS.computeIfAbsent(p.getUUID(), k -> new net.hypervisorx.util.RateLimiter(8, 16)).tryAcquire();
+    }
+
+    public static String clean(String s, int max) {
+        return net.hypervisorx.util.Names.clean(s, max);
+    }
+
     public static void action(ServerPlayer p, C2S.HostAction a) {
         VmManager m = mgr();
-        if (m == null || !near(p, a.pos())) return;
+        if (m == null || !near(p, a.pos()) || !allowAction(p)) return;
         HostBlockEntity host = resolveHost(p.level(), a.pos());
         if (host == null) return;
         int slot = Math.max(0, Math.min(host.vmSlots() - 1, a.slot()));
@@ -196,7 +210,15 @@ public final class HostService {
             sendHostInfo(p, a.pos());
             return;
         }
-        VmRecord r = a.action() == C2S.HostAction.POWER_ON ? ensureRecord(p, host, slot) : m.record(host.vmId(slot));
+        VmRecord r = m.record(host.vmId(slot));
+        if (r == null && a.action() == C2S.HostAction.POWER_ON) {
+            // only the owner (or an op) gets to create a computer's first VM
+            if (!mayAssemble(p, host)) {
+                deny(p);
+                return;
+            }
+            r = ensureRecord(p, host, slot);
+        }
         if (r == null) return;
         switch (a.action()) {
             case C2S.HostAction.POWER_ON -> {
@@ -204,7 +226,7 @@ public final class HostService {
                     deny(p);
                     return;
                 }
-                Component err = m.start(r, host.builtSpec(), host);
+                Component err = m.start(p, r, host.builtSpec(), host);
                 if (err != null) {
                     p.sendSystemMessage(err.copy().withStyle(ChatFormatting.RED));
                 } else {
@@ -252,7 +274,7 @@ public final class HostService {
     /** Power actions by VM id, from the focus screen of any VM the player can control. */
     public static void vmAction(ServerPlayer p, C2S.VmAction a) {
         VmManager m = mgr();
-        if (m == null) return;
+        if (m == null || !allowAction(p)) return;
         VmRecord r = m.record(a.vm());
         if (r == null) return;
         if (!m.canControl(p, r)) {
@@ -264,12 +286,12 @@ public final class HostService {
                 VmHost host = m.host(r);
                 Component err;
                 if (host != null) {
-                    err = m.start(r, host.builtSpec(), host);
+                    err = m.start(p, r, host.builtSpec(), host);
                 } else if (r.kind == VmRecord.HostKind.LAPTOP) {
                     if (r.battery == 0) {
                         err = Component.translatable("hypervisorx.msg.battery_empty", r.name);
                     } else {
-                        err = m.start(r, net.hypervisorx.hardware.LaptopModel.byId(r.laptopModel).spec(), null);
+                        err = m.start(p, r, net.hypervisorx.hardware.LaptopModel.byId(r.laptopModel).spec(), null);
                     }
                 } else {
                     err = Component.translatable("hypervisorx.msg.host_unloaded");
@@ -292,7 +314,7 @@ public final class HostService {
 
     public static void configure(ServerPlayer p, C2S.ConfigureVm c) {
         VmManager m = mgr();
-        if (m == null || !near(p, c.pos())) return;
+        if (m == null || !near(p, c.pos()) || !allowAction(p)) return;
         HostBlockEntity host = resolveHost(p.level(), c.pos());
         if (host == null || !mayAssemble(p, host)) return;
         int slot = Math.max(0, Math.min(host.vmSlots() - 1, c.slot()));
@@ -301,13 +323,23 @@ public final class HostService {
             deny(p);
             return;
         }
-        String name = c.name().strip();
-        if (!name.isEmpty()) r.name = name.length() > 48 ? name.substring(0, 48) : name;
+        boolean admin = m.isAdmin(p);
+        String name = clean(c.name(), 48);
+        if (!name.isEmpty()) r.name = name;
         String backend = c.backend();
+        if (backend.equals(net.hypervisorx.backend.hostcapture.HostCaptureBackend.ID) && !admin) {
+            p.sendSystemMessage(Component.translatable("hypervisorx.msg.capture_admin_only").withStyle(ChatFormatting.RED));
+            backend = r.backend;
+        }
         r.backend = backend.equals("auto") || BackendRegistry.get(backend).isPresent() ? backend : "auto";
         r.guestOs = GuestOs.parse(c.guestOs());
-        r.image = c.image().isBlank() || ImageLibrary.resolve(c.image()) != null ? c.image().strip() : r.image;
-        r.target = c.target().length() > 200 ? c.target().substring(0, 200) : c.target();
+        String image = clean(c.image(), 200);
+        if (ImageLibrary.isLinked(image) && !admin) {
+            p.sendSystemMessage(Component.translatable("hypervisorx.msg.linked_image_admin_only").withStyle(ChatFormatting.RED));
+        } else if (image.isEmpty() || ImageLibrary.resolve(image) != null) {
+            r.image = image;
+        }
+        r.target = clean(c.target(), 200);
         r.access = VmRecord.Access.parse(c.access());
         r.spanMonitors = Math.max(1, Math.min(3, c.span()));
         r.efi = c.efi();
@@ -368,8 +400,12 @@ public final class HostService {
         } else if (be instanceof LaptopBlockEntity lb) {
             if (lb.remoteTarget() != null && m.record(lb.remoteTarget()) != null) {
                 openFocus(p, m.record(lb.remoteTarget()), true);
-            } else {
+            } else if (m.record(lb.vmId(0)) != null) {
+                openFocus(p, m.record(lb.vmId(0)), true);
+            } else if (mayAssemble(p, lb)) {
                 openFocus(p, ensureRecord(p, lb, 0), true);
+            } else {
+                deny(p);
             }
         } else if (be instanceof HostBlockEntity h && h.vmId(0) != null) {
             openFocus(p, m.record(h.vmId(0)), false);

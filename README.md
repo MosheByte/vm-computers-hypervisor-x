@@ -1,6 +1,7 @@
 <p align="center"><img src="common/src/main/resources/hypervisorx_logo.png" width="140" alt="HyperVisor X logo"></p>
 
-<h1 align="center">VM Computers: HyperVisor X</h1>
+<h1 align="center">HyperVisor X</h1>
+<p align="center"><i>an unofficial, from-scratch successor to Delta2Force's VM Computers</i></p>
 
 <p align="center">
 <b>Real operating systems on real in-game computers, laptops, server racks and video walls.</b><br>
@@ -26,14 +27,14 @@ and shows up on monitors, ultrawides, laptops and walls of screens.
 
 ## Original VM Computers (2020) vs HyperVisor X (2026)
 
-| | VM Computers 1.4 (2020) | **HyperVisor X 1.0 (2026)** |
+| | VM Computers 1.4 (2020) | **HyperVisor X 1.2 (2026)** |
 |---|---|---|
 | Minecraft / loader | 1.16.5, Fabric | **1.21.1, NeoForge + Fabric** (Java 21) |
 | Hypervisors | VirtualBox 6.1 only (hand-started `vboxwebsrv`) | **VMware Workstation/Player/Fusion, VirtualBox 6.1/7.x (managed web service), QEMU with KVM/WHPX/HVF, embedded RISC-V MicroVM, host window capture** |
 | Works with Hyper-V / WSL2 on | often broke | **yes** (QEMU WHPX, VMware on WHP) |
 | No hypervisor installed | nothing works | **boots Linux 6.1 in ~1 s on the built-in MicroVM** |
 | Where the VM runs | on each player's own PC, one VM per player | **on the world host/server, any number of VMs, shared by everyone** |
-| Frame capture | full PNG screenshot in a busy loop that locked/unlocked the session every frame | VNC framebuffer (QEMU, VMware), persistent session + tile diff (VirtualBox), direct rasterizer (MicroVM), GDI `PrintWindow` (capture) |
+| Frame capture | full PNG screenshot in a busy loop that locked/unlocked the session every frame | VNC framebuffer (QEMU, VMware), direct rasterizer (MicroVM), GDI `PrintWindow` (capture); VirtualBox still uses screenshots (persistent session + tile diff, off the render thread) |
 | Upload to GPU | PNG decode + **new texture every frame on the render thread** | **dirty 64×64 tiles only, through an asynchronous PBO, trilinear mipmaps + anisotropic, sharp-bilinear shader** |
 | Multiplayer streaming | whole compressed PNG per frame, relayed through the server, **refused above 32 KB** | **delta-tile codec** (XOR deltas + deflate, optional RGB565), per-player bandwidth budget, late joiners get a full frame, only visible screens are streamed |
 | Resolution | whatever the VM window was, blurry | **GPU part decides: 720p, 1080p, 1440p, 4K; span across up to 3 monitors** |
@@ -43,8 +44,8 @@ and shows up on monitors, ultrawides, laptops and walls of screens.
 | Displays | CRT, flat screen, wall TV | 24", CRT, **curved 49" ultrawide, dual & triple arms, seamless video walls up to 32×18 blocks** |
 | Laptops | — | **Pro & Rugged laptops**: use while walking (picture-in-picture), battery, desk charging, Wi-Fi remote desktop |
 | Redstone | — | **GPIO card**: guest programs set/read redstone and move items between chests |
-| Store | basic tablet | **OrbitTech Store 2.0**: categories, search, specs, bundles, supply pod landing |
-| OS images | copy ISO into a folder | **OS library**: one-click downloads (SHA-256 checked), Windows 10/11 presets, in-game file browser + native dialog, `.iso .img .vmdk .vdi .qcow2 .vhd(x)` |
+| Store | basic tablet | **OrbitTech Store 2.0**: categories, search, specs, bundles, supply pod landing — plus **crafting recipes for every part** |
+| OS images | copy ISO into a folder | **OS library**: one-click downloads (every download pinned to a SHA-256), Windows 10/11 presets, in-game file browser + native dialog, `.iso .img .vmdk .vdi .qcow2 .vhd(x)`; disk images are copied per VM, never booted in place |
 | Permissions | owner only | private / others can watch / public + trusted players, operator overrides |
 
 ---
@@ -58,11 +59,11 @@ hardware acceleration is active.
 
 | Engine | Display / input | Extras | Typical picture rate* |
 |---|---|---|---|
-| **VMware** Workstation Pro / Player / Fusion | built-in VNC server (localhost, random password) | snapshots, suspend on world close, GPIO via named pipe, USB sticks | 20–30 FPS |
-| **VirtualBox** 6.1 / 7.x | managed `vboxwebsrv`, one persistent session, changed tiles only | snapshots, save-state, live ISO swap, GPIO via TCP serial | 10–25 FPS |
-| **QEMU** + KVM / WHPX / HVF / TCG | VNC with QEMU extensions (scan codes, audio) | **in-world audio**, snapshots, live ISO swap, NVMe, UEFI (+ swtpm TPM on Linux/macOS) | ~30 FPS (QEMU's VNC refresh) |
-| **Embedded MicroVM** (built-in) | pure-Java RV32IMA core + VT220 terminal | zero install, boots Linux 6.1 + BusyBox, DOOM terminal edition, GPIO via escape codes | up to 60 FPS |
-| **Host window capture** (Windows) | GDI `PrintWindow`, view only, opt-in | show Discord/VS Code/OBS/a browser on a screen | up to 60 FPS |
+| **VMware** Workstation Pro / Player / Fusion | built-in VNC server (localhost, random password) | snapshots, suspend on world close, GPIO via named pipe, USB sticks | ≈20 FPS measured (Tiny Core desktop, 1024×768) |
+| **VirtualBox** 6.1 / 7.x | managed `vboxwebsrv`, one persistent session, changed tiles only | snapshots, save-state, live ISO swap, GPIO via TCP serial | low (screenshot-based, not measured) |
+| **QEMU** + KVM / WHPX / HVF / TCG | VNC with QEMU extensions (scan codes, audio) | **in-world audio**, snapshots, live ISO swap, NVMe, UEFI (+ swtpm TPM on Linux/macOS) | not measured (bounded by QEMU's VNC refresh) |
+| **Embedded MicroVM** (built-in) | pure-Java RV32IMA core + VT220 terminal | zero install, boots Linux 6.1 + BusyBox, DOOM terminal edition, GPIO via escape codes | redraws on change, up to 60 FPS |
+| **Host window capture** (Windows) | GDI `PrintWindow`, view only, opt-in | show Discord/VS Code/OBS/a browser on a screen | up to 60 FPS (not measured) |
 
 \*The streaming pipeline runs at 60 FPS (configurable); what you see is limited by how fast the
 engine can produce frames. The rates above are expectations from each engine's capture method;
@@ -78,7 +79,9 @@ only the embedded MicroVM was measured for this release. Singleplayer uses an un
   32 GB **USB flash drive** (a real VMDK that moves between computers and hypervisors) ·
   **Redstone GPIO PCIe card** · **Wi-Fi card** · X8/X16 server blades.
 - Right-click a case holding a part to install it instantly, or open it to drag parts into typed slots.
-- Breaking a case keeps the parts **and the VM's disk** inside the item.
+- Breaking a case or rack keeps the parts and the **link to the VM** inside the item; the VM's disk stays in
+  the world save (`<world>/hypervisorx/vms/`) and comes back when you place the item again. A running VM gets
+  a power-button shutdown first and is only powered off if it is still running a minute later.
 
 ### Displays
 - 24" monitor, CRT, **curved 49" ultrawide**, **dual and triple monitor arms**.
@@ -120,9 +123,9 @@ Sneak-use the tablet or click *Library* in a computer:
 ## Install in 60 seconds
 
 1. Install **Minecraft 1.21.1** with **NeoForge 21.1.x** or **Fabric Loader ≥ 0.16 + Fabric API**.
-2. Download `hypervisorx-neoforge-1.21.1-1.1.0.jar` *or* `hypervisorx-fabric-1.21.1-1.1.0.jar`
+2. Download `hypervisorx-neoforge-1.21.1-1.2.0.jar` *or* `hypervisorx-fabric-1.21.1-1.2.0.jar`
    from [Releases](https://github.com/MosheBarami/vm-computers-hypervisor-x/releases) and put it in `.minecraft/mods`.
-3. Start a world, open the creative tab **VM Computers: HyperVisor X** (or craft the OrbitTech tablet),
+3. Start a world, open the creative tab **HyperVisor X** (or craft the OrbitTech tablet),
    or simply run **`/hvx demo`** to get a complete working showroom.
 
 ### Engine quick start
@@ -199,18 +202,28 @@ printf '\033]1337;GPIO;PULSE;front;15;20\a'   # one-second pulse in front
 ---
 
 ## Multiplayer, safety and performance
-- VMs run on the **server** (or the singleplayer host). Players only receive pixels for screens
-  they are looking at, within the screen distance setting.
-- Bandwidth per viewer, colour depth (24/16-bit), stream FPS, max running VMs, RAM share of the
-  host and what happens on world close (suspend / shutdown / kill) are in `config/hypervisorx-server.json`
-  and in the in-game settings screen for operators.
+- VMs run on the **server** (or the singleplayer host). The server decides which screens a player
+  receives: owners, trusted players and operators from anywhere (focus mode, remote desktop),
+  everyone else only within `maxWatchDistance` blocks of the computer, at most 6 streams per player.
+- **Quotas** (in `config/hypervisorx-server.json` and the in-game settings): running VMs per player
+  (default 2), RAM per player (16 GB), per VM (8 cores, 16 GB), share of host RAM (60 %), VMs in total (6),
+  and the permission level needed to boot VMware/VirtualBox/QEMU machines (`minPermissionForHostBackends`).
+- **Host safety:** program paths, host window capture and the VirtualBox web-service setting can only
+  be changed by the person at the host machine (singleplayer/LAN host) or in the config file — never
+  by operators over the network, and network (UNC/SMB) paths are never executed. QEMU's control,
+  display and serial sockets listen on a private loopback address guests cannot reach and the display
+  needs a random per-boot password; VirtualBox runs its web service with a temporary random account
+  and restores your settings when the world closes; downloaded images and kernels are pinned to SHA-256.
+- Host window capture can only be selected and started by operators, and only after the host enabled
+  it. Files linked from the host's PC are only listed for and bootable by operators.
+- Input, screen buttons and library requests are rate-limited per player.
+- Memory: each streamed VM keeps about two copies of its screen on the server (≈70 MB at 4K).
 - Every VM has an owner and an access mode; operators can always manage machines.
-- Host window capture and importing files from the host disk are restricted to the server
-  owner / operators and are off by default on dedicated servers.
 
 ## Commands
 `/hvx backends` · `/hvx list` · `/hvx info <id>` · `/hvx stop <id> [force]` · `/hvx rescan` ·
-`/hvx reload` · `/hvx selftest` (boots a throw-away MicroVM through the real encoder) · `/hvx demo`
+`/hvx reload` (re-reads the config file) · `/hvx selftest` (boots a throw-away MicroVM through the real encoder) ·
+`/hvx demo` · `/hvx gc <days> [confirm]` (lists, then deletes, VMs whose computer was not seen for N days)
 
 ## Building from source
 ```bash
@@ -235,13 +248,17 @@ neoforge/, fabric/            ~5 small classes each: registration, networking, e
 tools/                        asset, language and font generators
 ```
 
-## Known limitations (1.1.0)
+## Known limitations (1.2.0)
 - Minecraft **1.21.1** only; ports to the 26.x line are planned.
 - The embedded MicroVM is a RISC-V Linux text console, not an x86 PC; Windows needs VMware,
   VirtualBox or QEMU.
 - Guest audio is streamed into the world for **QEMU**; VMware and VirtualBox play guest audio on
   the host's speakers.
 - No virtual webcam and no Simple Voice Chat bridge yet.
+- VirtualBox capture is screenshot-based (PNG over the web service); expect a much lower frame rate
+  than VMware/QEMU. The VirtualBox and QEMU paths are reviewed and unit-tested but were not run
+  against a real installation for this release; only VMware and the embedded MicroVM were.
+- Frame rates for the hypervisor backends depend on your machine and were not benchmarked.
 - VMware's VNC server must be supported by your VMware version (verified with Workstation Pro 26H1u1).
 
 ## Credits

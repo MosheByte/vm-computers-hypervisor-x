@@ -34,6 +34,9 @@ public final class VmSession {
     public final long startedAt = System.currentTimeMillis();
     public volatile boolean stateDirty = true;
     public volatile int ramCommittedMb;
+    /** players allowed to send input. server thread refreshes it every second, network threads read it. */
+    public final java.util.Set<UUID> controllers = ConcurrentHashMap.newKeySet();
+    private boolean cancelled;
 
     public static final class Viewer {
         public final ServerPlayer player;
@@ -55,10 +58,27 @@ public final class VmSession {
         this.gpio = new GpioBridge(this);
     }
 
-    void attach(VmInstance instance) {
+    /**
+     * Hooks up the launched backend instance, unless the boot got cancelled in the meantime (force off,
+     * delete or world shutdown while the backend was still starting). Returns false if the caller has
+     * to power off the orphaned instance.
+     */
+    synchronized boolean attachIfLive(VmInstance instance) {
+        if (cancelled) return false;
         this.instance = instance;
         this.stream = new FrameStream(instance.framebuffer());
         stateDirty = true;
+        return true;
+    }
+
+    /** cancels a boot that has no instance yet. the launcher powers it off once it shows up. */
+    synchronized void cancel(String msg) {
+        cancelled = true;
+        setState(State.STOPPED, msg);
+    }
+
+    synchronized boolean cancelled() {
+        return cancelled;
     }
 
     public VmInstance instance() {

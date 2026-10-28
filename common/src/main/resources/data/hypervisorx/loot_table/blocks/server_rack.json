@@ -6,12 +6,16 @@
       "entries": [
         {
           "type": "minecraft:item",
-          "name": "hypervisorx:server_rack"
-        }
-      ],
-      "conditions": [
-        {
-          "condition": "minecraft:survives_explosion"
+          "name": "hypervisorx:server_rack",
+          "functions": [
+            {
+              "function": "minecraft:copy_components",
+              "source": "block_entity",
+              "include": [
+                "hypervisorx:installed_parts"
+              ]
+            }
+          ]
         }
       ]
     }

@@ -1,0 +1,22 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "hypervisorx:hdd_500gb"
+    },
+    {
+      "item": "hypervisorx:hdd_500gb"
+    },
+    {
+      "item": "minecraft:iron_block"
+    },
+    {
+      "item": "minecraft:diamond"
+    }
+  ],
+  "result": {
+    "id": "hypervisorx:enterprise_hdd_8tb",
+    "count": 1
+  }
+}

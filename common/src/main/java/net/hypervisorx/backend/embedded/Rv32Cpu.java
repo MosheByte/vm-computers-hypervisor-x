@@ -185,7 +185,8 @@ public final class Rv32Cpu {
                         int immSe = imm | (((imm & 0x800) != 0) ? 0xfffff000 : 0);
                         int rsval = rs1 + immSe;
                         rsval -= RAM_BASE;
-                        if (geu(rsval, ramSize - 3)) {
+                        int lsize = 1 << (((ir >>> 12) & 0x7) & 3);
+                        if (geu(rsval, ramSize - lsize + 1)) {
                             rsval += RAM_BASE;
                             if (isMmio(rsval)) {
                                 rval = bus.load(rsval);
@@ -211,7 +212,8 @@ public final class Rv32Cpu {
                         if ((addy & 0x800) != 0) addy |= 0xfffff000;
                         addy += rs1 - RAM_BASE;
                         rdid = 0;
-                        if (geu(addy, ramSize - 3)) {
+                        int ssize = 1 << (((ir >>> 12) & 0x7) & 3);
+                        if (geu(addy, ramSize - ssize + 1)) {
                             addy += RAM_BASE;
                             if (isMmio(addy)) {
                                 int ctl = bus.store(addy, rs2);

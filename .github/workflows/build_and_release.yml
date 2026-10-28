@@ -32,7 +32,9 @@ jobs:
 
       - name: Boot real Linux on the embedded RISC-V MicroVM
         run: |
-          curl -sSL -o /tmp/linux.zip https://github.com/cnlohr/mini-rv32ima-images/raw/master/images/linux-6.1.14-rv32nommu-cnl-1.zip
+          # pinned commit + checksum: the same image the mod itself downloads and verifies
+          curl -sSL -o /tmp/linux.zip https://github.com/cnlohr/mini-rv32ima-images/raw/7da8c6e486b7d510426b5c2283cd338abcf04eb7/images/linux-6.1.14-rv32nommu-cnl-1.zip
+          echo "add651195348b538c309becb39c5f8ef4f9d15ec275a2954b02016fc38091393  /tmp/linux.zip" | sha256sum -c -
           unzip -o /tmp/linux.zip -d /tmp/linux
           ./gradlew :common:test -Phvx.bootTest=true -Phvx.testImage=/tmp/linux/Image --stacktrace
 

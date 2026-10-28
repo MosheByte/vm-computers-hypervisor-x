@@ -144,4 +144,28 @@ public class ServerRackBlockEntity extends HostBlockEntity {
         for (int i = 0; i < items.size(); i++) parts.getItems().set(i, items.get(i));
         for (int i = 0; i < MAX_VMS; i++) vmIds[i] = tag.hasUUID("Vm" + i) ? tag.getUUID("Vm" + i) : null;
     }
+
+    @Override
+    protected void collectImplicitComponents(net.minecraft.core.component.DataComponentMap.Builder components) {
+        super.collectImplicitComponents(components);
+        List<ItemStack> list = new ArrayList<>();
+        for (int i = 0; i < parts.getContainerSize(); i++) list.add(parts.getItem(i));
+        components.set(net.hypervisorx.registry.HvxComponents.INSTALLED_PARTS.get(), net.minecraft.world.item.component.ItemContainerContents.fromItems(list));
+    }
+
+    @Override
+    protected void applyImplicitComponents(DataComponentInput input) {
+        super.applyImplicitComponents(input);
+        net.minecraft.world.item.component.ItemContainerContents contents = input.get(net.hypervisorx.registry.HvxComponents.INSTALLED_PARTS.get());
+        if (contents != null) {
+            NonNullList<ItemStack> items = NonNullList.withSize(parts.getContainerSize(), ItemStack.EMPTY);
+            contents.copyInto(items);
+            for (int i = 0; i < items.size(); i++) parts.getItems().set(i, items.get(i));
+        }
+    }
+
+    @Override
+    public void removeComponentsFromTag(CompoundTag tag) {
+        tag.remove("Items");
+    }
 }

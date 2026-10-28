@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "hypervisorx:ram_2gb"
+    },
+    {
+      "item": "hypervisorx:ram_2gb"
+    },
+    {
+      "item": "minecraft:gold_ingot"
+    }
+  ],
+  "result": {
+    "id": "hypervisorx:ram_4gb",
+    "count": 1
+  }
+}

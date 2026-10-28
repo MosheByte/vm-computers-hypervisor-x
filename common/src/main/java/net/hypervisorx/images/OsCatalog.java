@@ -47,14 +47,17 @@ public final class OsCatalog {
                     GuestOs.LINUX, Kind.EMBEDDED, "3.3 MB", "https://github.com/cnlohr/mini-rv32ima", 64, 1, 0, false, null, ""),
             new Entry("alpine", "Alpine Linux (virt)", "Tiny, fast, security-oriented Linux. Log in as root, run setup-alpine.",
                     GuestOs.LINUX, Kind.ISO, "~70 MB", "https://alpinelinux.org/downloads/", 1024, 2, 8, false, OsCatalog::resolveAlpine, "alpine-virt-x86_64.iso"),
-            new Entry("tinycore", "Tiny Core Linux 16", "A full graphical desktop in 25 MB that runs entirely in RAM.",
+            // tinycorelinux.net is plain HTTP only, so we pin the exact release by its SHA-256
+            new Entry("tinycore", "Tiny Core Linux 16.2", "A full graphical desktop in 25 MB that runs entirely in RAM.",
                     GuestOs.LINUX, Kind.ISO, "25 MB", "http://tinycorelinux.net/", 512, 1, 2, false,
-                    () -> new String[]{"http://tinycorelinux.net/16.x/x86/release/TinyCore-current.iso", ""}, "TinyCore-16.iso"),
+                    () -> new String[]{"http://tinycorelinux.net/16.x/x86/release/TinyCore-16.2.iso",
+                            "f26ca71a1bb8534ebad65a5df844d6adc4aba7252910186bef8623d86855db08"}, "TinyCore-16.iso"),
             new Entry("debian", "Debian (netinst)", "The universal operating system. Installs over the network.",
                     GuestOs.LINUX, Kind.ISO, "~750 MB", "https://www.debian.org/distrib/", 2048, 2, 32, false, OsCatalog::resolveDebian, "debian-netinst-amd64.iso"),
             new Entry("freedos", "FreeDOS 1.4", "A complete, free, DOS-compatible operating system. Play classic DOS games.",
                     GuestOs.DOS, Kind.ZIP_ISO, "294 MB", "https://www.freedos.org/download/", 64, 1, 2, false,
-                    () -> new String[]{"https://download.freedos.org/1.4/FD14-LiveCD.zip", ""}, "FreeDOS-1.4-LiveCD.iso"),
+                    () -> new String[]{"https://download.freedos.org/1.4/FD14-LiveCD.zip",
+                            "2020ff6bb681967fd6eff8f51ad2e5cd5ab4421165948cef4246e4f7fcaf6339"}, "FreeDOS-1.4-LiveCD.iso"),
             new Entry("reactos", "ReactOS (latest release)", "Open-source operating system binary-compatible with Windows apps and drivers.",
                     GuestOs.REACTOS, Kind.ZIP_ISO, "~200 MB", "https://reactos.org/download/", 1024, 1, 8, false, OsCatalog::resolveReactos, "ReactOS-latest.iso"),
             new Entry("kolibrios", "KolibriOS", "A complete graphical OS written in assembly that fits on a floppy. Download the ISO (.7z), extract it and import it.",
@@ -104,7 +107,10 @@ public final class OsCatalog {
             JsonObject a = e.getAsJsonObject();
             String name = a.get("name").getAsString();
             if (name.endsWith(".zip") && (name.contains("i386") || name.contains("x86")) && !name.toLowerCase().contains("live")) {
-                return new String[]{a.get("browser_download_url").getAsString(), ""};
+                // GitHub gives every release asset a SHA-256 digest
+                String digest = a.has("digest") && !a.get("digest").isJsonNull() ? a.get("digest").getAsString() : "";
+                if (!digest.startsWith("sha256:")) throw new IOException("the ReactOS release asset has no SHA-256 digest");
+                return new String[]{a.get("browser_download_url").getAsString(), digest.substring(7)};
             }
         }
         throw new IOException("no ReactOS ISO archive in the latest release");

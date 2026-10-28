@@ -22,6 +22,14 @@ import java.util.UUID;
 
 /** Owner, GPIO and client sync stuff shared by every block that hosts VMs. */
 public abstract class HostBlockEntity extends BlockEntity implements VmHost {
+    @Override
+    public void setLevel(net.minecraft.world.level.Level level) {
+        super.setLevel(level);
+        if (!level.isClientSide) {
+            for (int i = 0; i < vmSlots(); i++) net.hypervisorx.vm.VmManager.touch(vmId(i));
+        }
+    }
+
     protected UUID owner;
     protected String ownerName = "";
     protected final int[] gpioOut = new int[6];

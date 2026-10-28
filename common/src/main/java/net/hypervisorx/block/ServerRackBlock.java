@@ -99,20 +99,20 @@ public class ServerRackBlock extends HorizontalEntityBlock {
     @Override
     protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean moved) {
         if (!state.is(newState.getBlock()) && !level.isClientSide && level.getBlockEntity(pos) instanceof ServerRackBlockEntity be) {
-            Containers.dropContents(level, pos, be.parts());
+            // parts stay in the dropped rack item (INSTALLED_PARTS), same as computer cases
             boolean hasVms = false;
             for (int i = 0; i < be.vmSlots(); i++) hasVms |= be.vmId(i) != null;
             if (hasVms) {
                 if (level.getBlockEntity(pos.above()) instanceof ServerRackBlockEntity above && above.facing() == be.facing()) {
                     VmManager m = VmManager.get();
                     if (m != null) {
-                        for (int i = 0; i < be.vmSlots(); i++) if (be.vmId(i) != null) m.stop(be.vmId(i), VmManager.StopMode.FORCE);
+                        for (int i = 0; i < be.vmSlots(); i++) if (be.vmId(i) != null) m.stopGracefully(be.vmId(i));
                     }
                     be.transferVmsTo(above);
                 } else {
                     VmManager m = VmManager.get();
                     if (m != null) {
-                        for (int i = 0; i < be.vmSlots(); i++) if (be.vmId(i) != null) m.stop(be.vmId(i), VmManager.StopMode.FORCE);
+                        for (int i = 0; i < be.vmSlots(); i++) if (be.vmId(i) != null) m.stopGracefully(be.vmId(i));
                     }
                 }
             }

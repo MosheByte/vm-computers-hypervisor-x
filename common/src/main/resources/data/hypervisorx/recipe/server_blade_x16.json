@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "DID",
+    "PBP",
+    "DID"
+  ],
+  "key": {
+    "D": {
+      "item": "minecraft:diamond"
+    },
+    "I": {
+      "item": "minecraft:iron_block"
+    },
+    "P": {
+      "item": "hypervisorx:cpu_orbitripper_16"
+    },
+    "B": {
+      "item": "hypervisorx:server_blade_x8"
+    }
+  },
+  "result": {
+    "id": "hypervisorx:server_blade_x16",
+    "count": 1
+  }
+}

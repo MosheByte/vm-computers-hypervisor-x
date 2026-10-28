@@ -54,7 +54,17 @@ public final class UiKit {
     /** Glyphs in textures/gui/icons.png (12x12 on a 16px grid, 8 per row), made by tools/gen_icons.py. */
     public enum Icon {
         POWER, STOP, PLAY, RESET, CAMERA, DISC, USB, LIBRARY, FOCUS, GEAR, EYE, LOCK, USER_PLUS, USER_MINUS, CART, SEARCH, DOWNLOAD,
-        FOLDER, CHECK, CROSS, WARN, MONITOR, BACK, TRASH, CHIP, MEMORY, DRIVE, WIFI, PLUS, MINUS, BOX, ROCKET, INFO, CLOSE, KEYBOARD, SERVER
+        FOLDER, CHECK, CROSS, WARN, MONITOR, BACK, TRASH, CHIP, MEMORY, DRIVE, WIFI, PLUS, MINUS, BOX, ROCKET, INFO, CLOSE, KEYBOARD, SERVER, COIN
+    }
+
+    /**
+     * Scale for small secondary text that stays pixel-crisp. The font's 1px strokes have to land on
+     * whole screen pixels, so 3/4 turns into 2/3 at GUI scale 3, and full size at GUI scale 1-2.
+     */
+    public static float small() {
+        double g = Minecraft.getInstance().getWindow().getGuiScale();
+        int px = (int) Math.floor(g * 0.75);
+        return px < 2 ? 1f : (float) (px / g);
     }
 
     // ------------------------------------------------------------------------------------- shapes
@@ -135,7 +145,7 @@ public final class UiKit {
     /** Card with a small-caps section label in the top-left corner (top-right in RTL). */
     public static void section(GuiGraphics g, Font font, int x, int y, int w, int h, Component label) {
         box(g, x, y, w, h, SURFACE, STROKE_SOFT);
-        if (label != null) text(g, font, label.getString().toUpperCase(Locale.ROOT), x + 6, y + 5, DIM, 0.75f);
+        if (label != null) text(g, font, label.getString().toUpperCase(Locale.ROOT), x + 6, y + 5, MUTED, 0.75f);
     }
 
     public static void progress(GuiGraphics g, int x, int y, int w, int h, double fraction, int color) {
@@ -163,6 +173,7 @@ public final class UiKit {
     // ------------------------------------------------------------------------------------- text & icons
 
     public static void text(GuiGraphics g, Font font, String s, float x, float y, int color, float scale) {
+        if (scale == 0.75f) scale = small();
         if (scale == 1f) {
             g.drawString(font, s, (int) x, (int) y, color, false);
             return;
@@ -194,9 +205,10 @@ public final class UiKit {
                 });
                 text(g, font, clip(font, sb + "…", (int) (width / scale)), x, ly, color, scale);
             } else {
+                float sc = scale == 0.75f ? small() : scale;
                 g.pose().pushPose();
                 g.pose().translate(x, ly, 0);
-                g.pose().scale(scale, scale, 1f);
+                g.pose().scale(sc, sc, 1f);
                 g.drawString(font, lines.get(i), 0, 0, color, false);
                 g.pose().popPose();
             }

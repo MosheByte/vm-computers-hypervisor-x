@@ -29,7 +29,12 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.entity.BlockEntity;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.stream.Stream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -57,7 +62,9 @@ public final class VmManager {
     private final Map<UUID, VmSession> sessions = new ConcurrentHashMap<>();
     private final ExecutorService launcher;
     private final ScheduledExecutorService pump;
+    private final Map<UUID, net.hypervisorx.util.RateLimiter> inputLimits = new ConcurrentHashMap<>();
     private int ticks;
+
 
     private VmManager(MinecraftServer server) {
         this.server = server;
@@ -81,8 +88,17 @@ public final class VmManager {
         return instance;
     }
 
+    /** marks a VM as still belonging to a computer that exists (block loaded or laptop carried). */
+    public static void touch(UUID id) {
+        VmManager m = instance;
+        if (m == null || id == null) return;
+        VmRecord r = m.record(id);
+        if (r != null) r.lastSeen = System.currentTimeMillis();
+    }
+
     public static void onServerStarted(MinecraftServer server) {
         instance = new VmManager(server);
+        instance.collectOrphanDirectories();
         BackendRegistry.rescan(HvxConfig.get().backendContext());
         HyperVisorX.LOG.info("{} ready (host: {} CPUs, {} MiB RAM)", HyperVisorX.MOD_NAME, HostLimits.cpus(), HostLimits.totalRamMb());
     }
@@ -130,6 +146,113 @@ public final class VmManager {
         return p.hasPermissions(2) || server.isSingleplayerOwner(p.getGameProfile());
     }
 
+    /** true for backends that run programs on the host machine (so everything except the embedded MicroVM). */
+    public static boolean isHostBackend(String backendId) {
+        return !backendId.equals(EmbeddedBackend.ID);
+    }
+
+    /**
+     * Boots a VM for a player. Checks backend perms, host window capture rights, linked images and
+     * per-player quotas, then calls {@link #startUnchecked(VmRecord, BuiltSpec, VmHost)}. Anything a
+     * player starts has to go through here.
+     */
+    public Component start(ServerPlayer requester, VmRecord r, BuiltSpec hw, VmHost host) {
+        HvxConfig cfg = HvxConfig.get();
+        boolean admin = isAdmin(requester);
+        String backendId = resolveBackend(r);
+        if (!admin) {
+            if (backendId.equals(net.hypervisorx.backend.hostcapture.HostCaptureBackend.ID)) {
+                return Component.translatable("hypervisorx.msg.capture_admin_only");
+            }
+            if (isHostBackend(backendId) && !requester.hasPermissions(cfg.minPermissionForHostBackends)) {
+                return Component.translatable("hypervisorx.msg.backend_permission");
+            }
+            if (ImageLibrary.isLinked(r.image)) return Component.translatable("hypervisorx.msg.linked_image_admin_only");
+            UUID owner = r.owner != null ? r.owner : requester.getUUID();
+            List<VmSession> mine = sessions.values().stream().filter(VmSession::isActive)
+                    .filter(s -> owner.equals(s.record.owner)).toList();
+            if (mine.size() >= cfg.maxRunningVmsPerPlayer) {
+                return Component.translatable("hypervisorx.msg.player_vm_quota", cfg.maxRunningVmsPerPlayer);
+            }
+            int mineRam = mine.stream().mapToInt(s -> s.ramCommittedMb).sum();
+            int wanted = backendId.equals(EmbeddedBackend.ID) ? cfg.embeddedRamMb
+                    : Math.min(cfg.maxRamMbPerVm, r.kind == VmRecord.HostKind.RACK ? r.allocRamMb : hw.ramMb());
+            if (mineRam + wanted > cfg.maxRamMbPerPlayer) {
+                return Component.translatable("hypervisorx.msg.player_ram_quota", cfg.maxRamMbPerPlayer / 1024);
+            }
+        }
+        return startUnchecked(r, hw, host);
+    }
+
+    /** folder with a VM's backend files: inside the world save, or the old pre-1.1 global folder if it's already there. */
+    public Path vmRoot(UUID id) {
+        Path legacy = HvxConfig.dataRoot().resolve("vms").resolve(id.toString());
+        if (Files.isDirectory(legacy)) return legacy;
+        return worldVmsRoot().resolve(id.toString());
+    }
+
+    private Path worldVmsRoot() {
+        // LevelResource.ROOT is ".", normalize it so hypervisors hand back the same path (vmrun list)
+        return server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT).toAbsolutePath().normalize()
+                .resolve("hypervisorx").resolve("vms");
+    }
+
+    /** deletes VM folders in this world that no record points to anymore (deleted racks, removed records). */
+    private void collectOrphanDirectories() {
+        Path root = worldVmsRoot();
+        if (!Files.isDirectory(root)) return;
+        Set<String> known = new HashSet<>();
+        for (VmRecord r : data().all()) known.add(r.id.toString());
+        try (Stream<Path> dirs = Files.list(root)) {
+            for (Path d : dirs.toList()) {
+                String name = d.getFileName().toString();
+                if (!Files.isDirectory(d) || known.contains(name)) continue;
+                try {
+                    UUID.fromString(name);
+                } catch (IllegalArgumentException e) {
+                    continue;
+                }
+                launcher.execute(() -> destroyFiles(UUID.fromString(name), name, d));
+            }
+        } catch (IOException e) {
+            HyperVisorX.LOG.warn("Could not scan {}: {}", root, e.getMessage());
+        }
+    }
+
+    /**
+     * VMs whose computer hasn't been loaded or carried for {@code days} days (burned items, destroyed
+     * blocks). For {@code /hvx gc}, it doesn't delete anything on its own.
+     */
+    public List<VmRecord> staleRecords(int days) {
+        long cutoff = System.currentTimeMillis() - days * 86_400_000L;
+        return data().all().stream().filter(r -> !sessions.containsKey(r.id) && r.lastSeen < cutoff).toList();
+    }
+
+    /** unregisters a VM from every backend that has files for it, then wipes its folder (launcher thread). */
+    private void destroyFiles(UUID id, String name, Path root) {
+        if (Files.isDirectory(root)) {
+            try (Stream<Path> backends = Files.list(root)) {
+                for (Path dir : backends.toList()) {
+                    String backendId = dir.getFileName().toString();
+                    BackendRegistry.get(backendId).ifPresent(b -> {
+                        try {
+                            b.destroy(VmLaunchSpec.forFiles(id, name, dir), backendContext(), true);
+                        } catch (BackendException e) {
+                            HyperVisorX.LOG.warn("Could not unregister VM {} from {}: {}", id, backendId, e.getMessage());
+                        }
+                    });
+                }
+            } catch (IOException e) {
+                HyperVisorX.LOG.warn("Could not list {}: {}", root, e.getMessage());
+            }
+            try (Stream<Path> walk = Files.walk(root)) {
+                for (Path p : walk.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(p);
+            } catch (IOException e) {
+                HyperVisorX.LOG.warn("Could not delete {}: {}", root, e.getMessage());
+            }
+        }
+    }
+
     public boolean canView(ServerPlayer p, VmRecord r) {
         if (r == null) return false;
         return isAdmin(p) || p.getUUID().equals(r.owner) || r.trusted.contains(p.getUUID()) || r.access != VmRecord.Access.PRIVATE;
@@ -157,7 +280,7 @@ public final class VmManager {
      *
      * @param host the host block, or null for a laptop held in hand
      */
-    public Component start(VmRecord r, BuiltSpec hw, VmHost host) {
+    public Component startUnchecked(VmRecord r, BuiltSpec hw, VmHost host) {
         HvxConfig cfg = HvxConfig.get();
         VmSession existing = sessions.get(r.id);
         if (existing != null && existing.isActive()) return Component.translatable("hypervisorx.msg.already_running");
@@ -190,6 +313,7 @@ public final class VmManager {
         Path image = ImageLibrary.resolve(r.image);
         Path iso = image != null && !ImageLibrary.isDiskImage(image.getFileName().toString()) ? image : null;
         Path existingDisk = image != null && ImageLibrary.isDiskImage(image.getFileName().toString()) ? image : null;
+        Path librarySource = existingDisk;
         if (!r.image.isEmpty() && image == null && !backendId.equals(EmbeddedBackend.ID)) {
             return Component.translatable("hypervisorx.msg.image_missing", r.image);
         }
@@ -203,7 +327,11 @@ public final class VmManager {
         }
         boolean efi = r.efi || r.guestOs.needsEfiAndTpm();
         BackendContext ctx = backendContext();
-        Path vmDir = ctx.vmsRoot().resolve(r.id.toString()).resolve(backendId);
+        Path vmDir = vmRoot(r.id).resolve(backendId);
+        if (existingDisk != null) {
+            // don't boot a library image in place: each VM gets its own copy (made on the launcher thread)
+            existingDisk = vmDir.resolve("imported-" + existingDisk.getFileName());
+        }
         VmLaunchSpec spec = new VmLaunchSpec(r.id, r.name, r.guestOs, cores, ram, width, height, disk, hw.nvme(), efi,
                 r.guestOs.needsEfiAndTpm(), vmDir, iso, existingDisk, usb, hw.gpio(), true, r.target, null);
 
@@ -218,6 +346,11 @@ public final class VmManager {
 
         launcher.execute(() -> {
             try {
+                if (librarySource != null && !Files.exists(spec.existingDisk())) {
+                    s.setState(VmSession.State.STARTING, "Copying the disk image...");
+                    ImageLibrary.copyDiskImage(librarySource, spec.existingDisk());
+                }
+                if (s.cancelled()) return;
                 VmInstance inst = backend.launch(spec, ctx);
                 inst.setListener(new VmInstance.Listener() {
                     @Override
@@ -230,12 +363,17 @@ public final class VmManager {
                         fanOutAudio(s, samples, count);
                     }
                 });
-                s.attach(inst);
+                if (!s.attachIfLive(inst)) {
+                    HyperVisorX.LOG.info("VM {} was cancelled while booting; powering it off", r.id);
+                    inst.forceOff();
+                    inst.close();
+                    return;
+                }
                 s.gpio.attach(inst.gpioLink());
                 s.setState(map(inst.state()), inst.statusMessage());
-            } catch (BackendException e) {
+            } catch (BackendException | IOException e) {
                 HyperVisorX.LOG.warn("VM {} failed to start: {}", r.id, e.getMessage());
-                s.setState(VmSession.State.ERROR, e.getMessage());
+                if (!s.cancelled()) s.setState(VmSession.State.ERROR, e.getMessage());
             } catch (Throwable t) {
                 HyperVisorX.LOG.error("VM {} crashed while starting", r.id, t);
                 s.setState(VmSession.State.ERROR, t.toString());
@@ -259,7 +397,7 @@ public final class VmManager {
         if (s == null) return;
         VmInstance inst = s.instance();
         if (inst == null) {
-            if (mode == StopMode.FORCE) s.setState(VmSession.State.STOPPED, "Cancelled.");
+            if (mode != StopMode.RESET) s.cancel("Cancelled.");
             return;
         }
         switch (mode) {
@@ -277,6 +415,38 @@ public final class VmManager {
             });
             case RESET -> inst.reset();
         }
+    }
+
+    /**
+     * The computer got removed (broken, blown up). Ask the guest to shut down like a power button press
+     * and only pull the plug if it's still running a minute later, so a creeper doesn't wreck the guest
+     * file system mid-write.
+     */
+    public void stopGracefully(UUID id) {
+        VmSession s = sessions.get(id);
+        if (s == null) return;
+        VmInstance inst = s.instance();
+        if (inst == null) {
+            s.cancel("The computer was removed.");
+            return;
+        }
+        inst.powerButton();
+        s.setState(VmSession.State.STOPPING, "The computer was removed - shutting down...");
+        launcher.execute(() -> {
+            long end = System.currentTimeMillis() + 60_000;
+            while (System.currentTimeMillis() < end && inst.state() != VmInstance.State.STOPPED && inst.state() != VmInstance.State.ERROR) {
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+            if (inst.state() != VmInstance.State.STOPPED) {
+                inst.forceOff();
+                s.setState(VmSession.State.STOPPED, "Powered off.");
+            }
+        });
     }
 
     public void snapshot(UUID id, ServerPlayer requester) {
@@ -308,30 +478,34 @@ public final class VmManager {
         });
     }
 
-    /** Removes the record, stops the VM and optionally deletes backend files (rack slot removal). */
+    /** removes the record, stops the VM and, if asked, deletes all its backend files (running or not). */
     public void delete(UUID id, boolean deleteDisks) {
         VmSession s = sessions.remove(id);
         VmRecord r = data().get(id);
+        if (s != null && s.instance() == null) s.cancel("Deleted.");
+        Path root = vmRoot(id);
+        String name = r != null ? r.name : id.toString();
         launcher.execute(() -> {
-            if (s != null && s.instance() != null) s.instance().forceOff();
-            if (r != null && deleteDisks && s != null) {
-                BackendRegistry.get(s.backendId).ifPresent(b -> {
-                    try {
-                        b.destroy(s.spec, backendContext(), true);
-                    } catch (BackendException e) {
-                        HyperVisorX.LOG.warn("Could not delete VM files: {}", e.getMessage());
-                    }
-                });
+            if (s != null && s.instance() != null) {
+                s.instance().forceOff();
+                s.instance().close();
             }
+            if (deleteDisks) destroyFiles(id, name, root);
         });
         data().remove(id);
     }
 
     // ------------------------------------------------------------------ input & viewers
 
+    /**
+     * Keyboard/mouse input. On NeoForge this runs on the network thread, so it only reads thread safe
+     * state: the per-session controller set that {@link #tick()} refreshes, and a per-player rate limit
+     * (the client already merges pointer moves, and 400 events/s is way above real typing).
+     */
     public void input(ServerPlayer player, C2S.Input in) {
         VmSession s = sessions.get(in.vm());
-        if (s == null || !canControl(player, s.record)) return;
+        if (s == null || !s.controllers.contains(player.getUUID())) return;
+        if (!inputLimits.computeIfAbsent(player.getUUID(), k -> new net.hypervisorx.util.RateLimiter(400, 800)).tryAcquire()) return;
         VmInstance inst = s.instance();
         if (inst == null) return;
         Framebuffer fb = inst.framebuffer();
@@ -359,13 +533,31 @@ public final class VmManager {
             VmSession s = sessions.get(id);
             if (s != null) s.viewers.remove(player.getUUID());
         }
+        long watching = sessions.values().stream().filter(s -> s.viewers.containsKey(player.getUUID())).count();
         for (UUID id : add) {
             VmSession s = sessions.get(id);
-            if (s == null || !canView(player, s.record)) continue;
+            if (s == null || !canView(player, s.record) || !mayStreamTo(player, s, cfg)) continue;
+            if (!s.viewers.containsKey(player.getUUID()) && watching >= MAX_STREAMS_PER_PLAYER) continue;
+            if (!s.viewers.containsKey(player.getUUID())) watching++;
             VmSession.Viewer v = s.addViewer(player, local, cfg.streamColorDepth == 16, cfg.maxBandwidthPerViewerKiB * 1024.0);
             v.lastSeen = System.currentTimeMillis();
             Services.PLATFORM.sendToPlayer(player, status(s, player));
         }
+    }
+
+    private static final int MAX_STREAMS_PER_PLAYER = 6;
+
+    /**
+     * Server decides which screens a player gets. Owners, trusted players and ops: from anywhere (focus
+     * mode, remote desktop). Everyone else: only near the computer.
+     */
+    private boolean mayStreamTo(ServerPlayer player, VmSession s, HvxConfig cfg) {
+        if (isAdmin(player) || canControl(player, s.record) && s.record.access != VmRecord.Access.PUBLIC) return true;
+        if (player.getUUID().equals(s.record.owner) || s.record.trusted.contains(player.getUUID())) return true;
+        VmRecord r = s.record;
+        if (r.hostPos == null || r.dimension == null || !player.level().dimension().equals(r.dimension)) return false;
+        double max = cfg.maxWatchDistance;
+        return player.distanceToSqr(r.hostPos.getCenter()) <= max * max;
     }
 
     public S2C.VmStatus status(VmSession s, ServerPlayer p) {
@@ -440,8 +632,19 @@ public final class VmManager {
     public void tick() {
         ticks++;
         HvxConfig cfg = HvxConfig.get();
+        if (ticks % 20 == 0) {
+            inputLimits.keySet().removeIf(id -> server.getPlayerList().getPlayer(id) == null);
+        }
         for (VmSession s : sessions.values()) {
             VmHost host = host(s.record);
+            if (ticks % 20 == 0) {
+                s.record.lastSeen = System.currentTimeMillis();
+                for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+                    if (canControl(p, s.record)) s.controllers.add(p.getUUID());
+                    else s.controllers.remove(p.getUUID());
+                }
+                s.controllers.removeIf(id -> server.getPlayerList().getPlayer(id) == null);
+            }
             if (s.stateDirty) {
                 s.stateDirty = false;
                 if (host != null) host.onVmStateChanged(host.slotOf(s.record.id), s.state());
@@ -547,7 +750,10 @@ public final class VmManager {
         List<Thread> threads = new ArrayList<>();
         for (VmSession s : sessions.values()) {
             VmInstance inst = s.instance();
-            if (inst == null) continue;
+            if (inst == null) {
+                s.cancel("World closed.");
+                continue;
+            }
             Thread t = new Thread(() -> {
                 try {
                     boolean done = false;

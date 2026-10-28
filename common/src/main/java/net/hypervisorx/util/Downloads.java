@@ -26,7 +26,8 @@ public final class Downloads {
     }
 
     private static final HttpClient CLIENT = HttpClient.newBuilder()
-            .followRedirects(HttpClient.Redirect.ALWAYS)
+            // NORMAL won't follow an https -> http downgrade
+            .followRedirects(HttpClient.Redirect.NORMAL)
             .connectTimeout(Duration.ofSeconds(20))
             .build();
 

@@ -201,13 +201,16 @@ public class StoreScreen extends Screen {
             Integer q = cart.get(p.id());
             UiKit.card(g, x, y, cw, CARD_H, hover);
             if (q != null) UiKit.stroke(g, x, y, cw, CARD_H, UiKit.withAlpha(UiKit.OK, 0xB0));
-            UiKit.round(g, x + 4, y + 4, 22, 22, 0xFF0F1216);
+            // lighter well behind the icon so dark stuff (tower, rack, laptop) doesn't vanish
+            UiKit.round(g, x + 4, y + 4, 22, 22, 0xFF3A414D);
+            UiKit.round(g, x + 5, y + 5, 20, 20, 0xFF2A303A);
             g.renderItem(p.icon(), x + 7, y + 7);
             UiKit.paragraph(g, font, displayName(p).getString(), x + 30, y + 5, cw - 34, 2, UiKit.TEXT, 0.75f);
             String sub = p.isBundle() ? Component.translatable("hypervisorx.store.items", p.contents().stream().mapToInt(StoreCatalog.Line::count).sum()).getString()
                     : specLine(p.icon());
             UiKit.textFit(g, font, sub, x + 30, y + 21, cw - 34, UiKit.MUTED, 0.75f);
-            UiKit.textFit(g, font, p.price() + " \u00a2", x + 6, y + CARD_H - 11, cw / 2, UiKit.WARN, 1f);
+            UiKit.icon(g, UiKit.Icon.COIN, x + 5, y + CARD_H - 13, UiKit.WARN);
+            UiKit.textFit(g, font, String.valueOf(p.price()), x + 19, y + CARD_H - 11, cw / 2, UiKit.WARN, 1f);
             if (q != null) UiKit.pill(g, font, x + cw - 4, y + CARD_H - 14, "\u00d7" + q, UiKit.OK);
         }
         g.disableScissor();
@@ -230,7 +233,7 @@ public class StoreScreen extends Screen {
             if (ly < y + panelH - 112) {
                 g.renderItem(p.icon(), x + 1, ly - 3);
                 UiKit.textFit(g, font, displayName(p).getString(), x + 20, ly - 1, CART_W - 46, UiKit.TEXT, 0.75f);
-                UiKit.textFit(g, font, "\u00d7" + e.getValue() + "  " + (long) p.price() * e.getValue() + " \u00a2", x + 20, ly + 6, CART_W - 22, UiKit.MUTED, 0.75f);
+                UiKit.textFit(g, font, "\u00d7" + e.getValue() + "  \u00b7  " + (long) p.price() * e.getValue() + " cr", x + 20, ly + 6, CART_W - 22, UiKit.MUTED, 0.75f);
                 ly += 18;
             }
         }

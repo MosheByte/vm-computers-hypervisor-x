@@ -67,7 +67,7 @@ public class LibraryScreen extends Screen {
         addRenderableWidget(new UiKit.FlatButton(left + 9 + bw, top + h - 22, bw, 16, Component.translatable("hypervisorx.library.rescan"),
                 () -> send(C2S.LibraryAction.RESCAN, "")).icon(UiKit.Icon.RESET)
                 .enabledWhen(() -> ClientVmCache.library() != null && ClientVmCache.library().canEdit()));
-        addRenderableWidget(new UiKit.FlatButton(left + 12 + 2 * bw, top + h - 22, bw, 16, Component.translatable("hypervisorx.settings.title"),
+        addRenderableWidget(new UiKit.FlatButton(left + 12 + 2 * bw, top + h - 22, bw, 16, Component.translatable("hypervisorx.library.settings_short"),
                 () -> minecraft.setScreen(new SettingsScreen(this))).icon(UiKit.Icon.GEAR).accent(UiKit.ACCENT_2));
         send(C2S.LibraryAction.REFRESH, "");
     }

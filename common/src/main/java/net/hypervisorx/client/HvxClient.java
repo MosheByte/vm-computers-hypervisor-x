@@ -110,9 +110,28 @@ public final class HvxClient {
         HvxRenderTypes.setScreenShader(shader);
     }
 
+    /** Dev-only smoke test hook. AutoTest doesn't ship in release jars. */
+    private static final Runnable DEV_HOOK = devHook();
+
+    private static Runnable devHook() {
+        if (!Boolean.getBoolean("hvx.autotest") && !Boolean.getBoolean("hvx.demoworld") && !Boolean.getBoolean("hvx.vmwaretest")) return () -> { };
+        try {
+            java.lang.reflect.Method tick = Class.forName("net.hypervisorx.client.AutoTest").getMethod("tick");
+            return () -> {
+                try {
+                    tick.invoke(null);
+                } catch (ReflectiveOperationException e) {
+                    HyperVisorX.LOG.error("Autotest hook failed", e);
+                }
+            };
+        } catch (ReflectiveOperationException e) {
+            return () -> { };
+        }
+    }
+
     /** Runs at the end of every client tick. */
     public static void onClientTick() {
-        AutoTest.tick();
+        DEV_HOOK.run();
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null) return;
         ScreenTracker.tick();

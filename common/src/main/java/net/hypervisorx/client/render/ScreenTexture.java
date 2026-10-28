@@ -33,6 +33,8 @@ import java.util.BitSet;
  * never touched, so a static desktop costs nothing per frame.
  */
 public final class ScreenTexture extends AbstractTexture {
+    /** Reused across uploads, one int triple per dirty run. */
+    private int[] runBuffer = new int[0];
     private static final int TILE = Framebuffer.TILE;
 
     private final ResourceLocation location;
@@ -167,7 +169,9 @@ public final class ScreenTexture extends AbstractTexture {
                 return 0;
             }
             // collect horizontal runs of dirty tiles row by row until the budget runs out
-            int[] runs = new int[tilesX * tilesY * 3];
+            int need = tilesX * tilesY * 3;
+            if (runBuffer.length < need) runBuffer = new int[need];
+            int[] runs = runBuffer;
             int runCount = 0;
             long total = 0;
             outer:

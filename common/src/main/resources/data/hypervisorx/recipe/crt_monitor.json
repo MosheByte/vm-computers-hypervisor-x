@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "TTT",
+    "TGT",
+    "TRT"
+  ],
+  "key": {
+    "T": {
+      "item": "minecraft:white_terracotta"
+    },
+    "G": {
+      "item": "minecraft:glass"
+    },
+    "R": {
+      "item": "minecraft:redstone"
+    }
+  },
+  "result": {
+    "id": "hypervisorx:crt_monitor",
+    "count": 1
+  }
+}

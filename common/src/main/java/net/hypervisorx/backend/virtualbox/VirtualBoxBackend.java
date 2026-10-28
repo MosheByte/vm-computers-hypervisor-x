@@ -149,62 +149,72 @@ public final class VirtualBoxBackend implements HypervisorBackend {
                 manageQuiet(manage, "controlvm", name, "poweroff");
             }
 
-            boolean legacy = spec.guestOs() == GuestOs.DOS;
-            List<String> modify = Processes.list("modifyvm", name,
-                    "--ostype", spec.guestOs().virtualBoxType(),
-                    "--memory", Integer.toString(Math.max(64, spec.ramMb())),
-                    "--cpus", Integer.toString(Math.max(1, spec.cores())),
-                    "--vram", Integer.toString(Math.min(256, Math.max(16, (int) ((long) spec.width() * spec.height() * 4 * 2 >> 20) + 8))),
-                    "--graphicscontroller", spec.guestOs().isWindowsFamily() ? "vboxsvga" : "vmsvga",
-                    "--firmware", spec.efi() && !legacy ? "efi" : "bios",
-                    "--nic1", "nat",
-                    "--nictype1", legacy ? "Am79C973" : "82540EM",
-                    "--mouse", legacy ? "ps2" : "usbtablet",
-                    "--keyboard", "ps2",
-                    "--rtcuseutc", spec.guestOs().windowsClock() ? "off" : "on",
-                    "--vrde", "off");
-            List<String> extended = new ArrayList<>(modify);
-            extended.addAll(List.of("--usb-xhci", legacy ? "off" : "on", "--audio-enabled", spec.audio() ? "on" : "off", "--audio-out", "on"));
-            if (spec.tpm() && !legacy) extended.addAll(List.of("--tpm-type", "2.0"));
-            if (!manageQuiet(manage, extended.toArray(String[]::new))) {
-                manage(manage, modify.toArray(String[]::new)); // VirtualBox 6.1 option names
-            }
-            manageQuiet(manage, "setextradata", name, "CustomVideoMode1", spec.width() + "x" + spec.height() + "x32");
-            manageQuiet(manage, "setextradata", name, "GUI/MaxGuestResolution", "any");
+            // a saved (suspended) machine won't take any changes, so just resume it as is
+            boolean saved = state.equals("saved");
+            if (!saved) {
+                boolean legacy = spec.guestOs() == GuestOs.DOS;
+                List<String> modify = Processes.list("modifyvm", name,
+                        "--ostype", spec.guestOs().virtualBoxType(),
+                        "--memory", Integer.toString(Math.max(64, spec.ramMb())),
+                        "--cpus", Integer.toString(Math.max(1, spec.cores())),
+                        "--vram", Integer.toString(Math.min(256, Math.max(16, (int) ((long) spec.width() * spec.height() * 4 * 2 >> 20) + 8))),
+                        "--graphicscontroller", spec.guestOs().isWindowsFamily() ? "vboxsvga" : "vmsvga",
+                        "--firmware", spec.efi() && !legacy ? "efi" : "bios",
+                        "--nic1", "nat",
+                        "--nictype1", legacy ? "Am79C973" : "82540EM",
+                        "--mouse", legacy ? "ps2" : "usbtablet",
+                        "--keyboard", "ps2",
+                        "--rtcuseutc", spec.guestOs().windowsClock() ? "off" : "on",
+                        "--vrde", "off");
+                List<String> extended = new ArrayList<>(modify);
+                extended.addAll(List.of("--usb-xhci", legacy ? "off" : "on", "--audio-enabled", spec.audio() ? "on" : "off", "--audio-out", "on"));
+                if (spec.tpm() && !legacy) extended.addAll(List.of("--tpm-type", "2.0"));
+                if (!manageQuiet(manage, extended.toArray(String[]::new))) {
+                    manage(manage, modify.toArray(String[]::new)); // 6.1 doesn't know the new option names
+                }
+                manageQuiet(manage, "setextradata", name, "CustomVideoMode1", spec.width() + "x" + spec.height() + "x32");
+                manageQuiet(manage, "setextradata", name, "GUI/MaxGuestResolution", "any");
 
-            info = vmInfo(manage, name);
-            if (!info.containsValue("SATA")) {
-                manage(manage, "storagectl", name, "--name", "SATA", "--add", "sata", "--controller", "IntelAhci", "--portcount", "6", "--bootable", "on");
-            }
-            boolean nvme = spec.nvme() && !legacy;
-            if (nvme && !info.containsValue("NVMe")) {
-                manage(manage, "storagectl", name, "--name", "NVMe", "--add", "pcie", "--controller", "NVMe", "--bootable", "on");
-            }
-            if (spec.existingDisk() != null || spec.diskGb() > 0) {
-                Path disk = spec.existingDisk() != null ? spec.existingDisk() : spec.vmDir().resolve("disk.vdi");
-                String fmt = spec.existingDiskFormat();
-                if (fmt.equals("qcow2") || fmt.equals("raw")) {
-                    throw new BackendException("VirtualBox cannot boot ." + fmt + " disks; convert it to VDI/VMDK or use the QEMU backend.");
+                info = vmInfo(manage, name);
+                if (!info.containsValue("SATA")) {
+                    manage(manage, "storagectl", name, "--name", "SATA", "--add", "sata", "--controller", "IntelAhci", "--portcount", "6", "--bootable", "on");
                 }
-                if (spec.existingDisk() == null && !Files.exists(disk)) {
-                    manage(manage, "createmedium", "disk", "--filename", disk.toString(), "--size", Long.toString(spec.diskGb() * 1024L), "--format", "VDI");
+                boolean nvme = spec.nvme() && !legacy;
+                if (nvme && !info.containsValue("NVMe")) {
+                    manage(manage, "storagectl", name, "--name", "NVMe", "--add", "pcie", "--controller", "NVMe", "--bootable", "on");
                 }
-                manageQuiet(manage, "storageattach", name, "--storagectl", nvme ? "SATA" : "NVMe", "--port", "0", "--device", "0", "--medium", "none");
-                manage(manage, "storageattach", name, "--storagectl", nvme ? "NVMe" : "SATA", "--port", "0", "--device", "0",
-                        "--type", "hdd", "--medium", disk.toString());
+                if (spec.existingDisk() != null || spec.diskGb() > 0) {
+                    Path disk = spec.existingDisk() != null ? spec.existingDisk() : spec.vmDir().resolve("disk.vdi");
+                    String fmt = spec.existingDiskFormat();
+                    if (fmt.equals("qcow2") || fmt.equals("raw")) {
+                        throw new BackendException("VirtualBox cannot boot ." + fmt + " disks; convert it to VDI/VMDK or use the QEMU backend.");
+                    }
+                    if (spec.existingDisk() == null && !Files.exists(disk)) {
+                        manage(manage, "createmedium", "disk", "--filename", disk.toString(), "--size", Long.toString(spec.diskGb() * 1024L), "--format", "VDI");
+                    }
+                    manageQuiet(manage, "storageattach", name, "--storagectl", nvme ? "SATA" : "NVMe", "--port", "0", "--device", "0", "--medium", "none");
+                    manage(manage, "storageattach", name, "--storagectl", nvme ? "NVMe" : "SATA", "--port", "0", "--device", "0",
+                            "--type", "hdd", "--medium", disk.toString());
+                }
+                String iso = spec.isoImage() != null && Files.isRegularFile(spec.isoImage()) ? spec.isoImage().toAbsolutePath().toString() : "emptydrive";
+                manage(manage, "storageattach", name, "--storagectl", "SATA", "--port", "1", "--device", "0", "--type", "dvddrive", "--medium", iso);
+                for (int port = 2; port < 6; port++) {
+                    manageQuiet(manage, "storageattach", name, "--storagectl", "SATA", "--port", Integer.toString(port), "--device", "0", "--medium", "none");
+                }
+                int port = 2;
+                for (Path usb : spec.usbDrives()) {
+                    if (!Files.isRegularFile(usb) || port >= 6) continue;
+                    manageQuiet(manage, "storageattach", name, "--storagectl", "SATA", "--port", Integer.toString(port++), "--device", "0",
+                            "--type", "hdd", "--hotpluggable", "on", "--medium", usb.toAbsolutePath().toString());
+                }
             }
-            String iso = spec.isoImage() != null && Files.isRegularFile(spec.isoImage()) ? spec.isoImage().toAbsolutePath().toString() : "emptydrive";
-            manage(manage, "storageattach", name, "--storagectl", "SATA", "--port", "1", "--device", "0", "--type", "dvddrive", "--medium", iso);
-            for (int port = 2; port < 6; port++) {
-                manageQuiet(manage, "storageattach", name, "--storagectl", "SATA", "--port", Integer.toString(port), "--device", "0", "--medium", "none");
-            }
-            int port = 2;
-            for (Path usb : spec.usbDrives()) {
-                if (!Files.isRegularFile(usb) || port >= 6) continue;
-                manageQuiet(manage, "storageattach", name, "--storagectl", "SATA", "--port", Integer.toString(port++), "--device", "0",
-                        "--type", "hdd", "--hotpluggable", "on", "--medium", usb.toAbsolutePath().toString());
-            }
-            if (spec.gpio()) {
+            if (saved) {
+                String uart = info.getOrDefault("uartmode1", "");
+                if (spec.gpio() && uart.startsWith("tcpserver,")) {
+                    gpioPort = Integer.parseInt(uart.substring("tcpserver,".length()).trim());
+                    Processes.reservePort(gpioPort);
+                }
+            } else if (spec.gpio()) {
                 gpioPort = Processes.allocatePort(48100, 48999);
                 if (!manageQuiet(manage, "modifyvm", name, "--uart1", "0x3F8", "4", "--uart-mode1", "tcpserver", Integer.toString(gpioPort))) {
                     manage(manage, "modifyvm", name, "--uart1", "0x3F8", "4", "--uartmode1", "tcpserver", Integer.toString(gpioPort));
@@ -213,6 +223,10 @@ public final class VirtualBoxBackend implements HypervisorBackend {
                 manageQuiet(manage, "modifyvm", name, "--uart1", "off");
             }
 
+            // guests shouldn't reach stuff on the host's loopback (default in VirtualBox 7, we force it on older ones)
+            if (!saved && !manageQuiet(manage, "modifyvm", name, "--nat-localhostreachable1", "off")) {
+                manageQuiet(manage, "modifyvm", name, "--natlocalhostreachable1", "off");
+            }
             manage(manage, "startvm", name, "--type", "headless");
             VboxWebService.ensure(webSrv, manage, ctx.virtualBoxWebPort(), ctx.allowVboxAuthChange(), ctx.dataRoot().resolve("logs"));
             VirtualBoxInstance instance = new VirtualBoxInstance(spec, manage, ctx.virtualBoxWebPort(), gpioPort);
