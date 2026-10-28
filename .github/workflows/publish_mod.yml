@@ -1,8 +1,10 @@
 name: Publish to Modrinth & CurseForge
 
-# Called by "Build & Release" after a v* tag build, or run by hand from the Actions tab
-# (pick the tag in "Use workflow from"). A platform is skipped when its token is missing.
-# Configure once in Settings -> Secrets and variables -> Actions:
+# "Build & Release" calls this after a tested v* tag build, and it uploads exactly the jars that
+# build made and tested (artifact "hypervisorx-jars"). You can also run it by hand from the Actions
+# tab on an existing tag: it rebuilds that tag WITH tests and publishes it.
+# No token for a platform = that platform gets skipped. Set these once in
+# Settings -> Secrets and variables -> Actions:
 #   secrets: MODRINTH_TOKEN, CURSEFORGE_TOKEN
 #   variables: MODRINTH_ID (project id/slug), CURSEFORGE_ID (numeric project id)
 on:
@@ -19,7 +21,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Version tag to publish (e.g. v1.0.0)
+        description: Version tag to publish (e.g. v1.1.0)
         required: true
 
 jobs:
@@ -31,17 +33,36 @@ jobs:
         with:
           ref: ${{ inputs.version }}
 
+      - name: Use the tested jars from the release build
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: hypervisorx-jars
+          path: dist
+
       - uses: actions/setup-java@v4
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         with:
           distribution: temurin
           java-version: 21
 
       - uses: gradle/actions/setup-gradle@v4
+        if: ${{ github.event_name == 'workflow_dispatch' }}
 
-      - name: Build
+      - name: Rebuild the tag with tests (manual runs only)
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
           chmod +x gradlew
-          ./gradlew build -x test --stacktrace
+          ./gradlew build --stacktrace
+          mkdir -p dist
+          cp neoforge/build/libs/hypervisorx-neoforge-*.jar fabric/build/libs/hypervisorx-fabric-*.jar dist/
+          rm -f dist/*-sources.jar
+
+      - name: Version without the tag's "v"
+        id: ver
+        run: echo "number=${VERSION#v}" >> "$GITHUB_OUTPUT"
+        env:
+          VERSION: ${{ inputs.version }}
 
       - name: Publish NeoForge build
         uses: Kir-Antipov/mc-publish@v3.3
@@ -50,9 +71,9 @@ jobs:
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
           curseforge-id: ${{ vars.CURSEFORGE_ID }}
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
-          files: neoforge/build/libs/!(*-@(sources|dev)).jar
-          name: HyperVisor X ${{ inputs.version }} (NeoForge 1.21.1)
-          version: ${{ inputs.version }}+neoforge
+          files: dist/hypervisorx-neoforge-*.jar
+          name: HyperVisor X ${{ steps.ver.outputs.number }} (NeoForge 1.21.1)
+          version: ${{ steps.ver.outputs.number }}+neoforge
           version-type: release
           changelog-file: CHANGELOG.md
           loaders: neoforge
@@ -66,9 +87,9 @@ jobs:
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
           curseforge-id: ${{ vars.CURSEFORGE_ID }}
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
-          files: fabric/build/libs/!(*-@(sources|dev)).jar
-          name: HyperVisor X ${{ inputs.version }} (Fabric 1.21.1)
-          version: ${{ inputs.version }}+fabric
+          files: dist/hypervisorx-fabric-*.jar
+          name: HyperVisor X ${{ steps.ver.outputs.number }} (Fabric 1.21.1)
+          version: ${{ steps.ver.outputs.number }}+fabric
           version-type: release
           changelog-file: CHANGELOG.md
           loaders: fabric

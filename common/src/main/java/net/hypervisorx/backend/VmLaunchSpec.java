@@ -49,6 +49,12 @@ public record VmLaunchSpec(
         String target,
         Path embeddedKernel) {
 
+    /** Bare-bones spec that just points at an existing VM's files, for unregistering/deleting them. */
+    public static VmLaunchSpec forFiles(UUID id, String name, Path vmDir) {
+        return new VmLaunchSpec(id, name, GuestOs.LINUX, 1, 256, 640, 480, 0, false, false, false, vmDir, null, null, List.of(),
+                false, false, "", null);
+    }
+
     /** QEMU/VirtualBox format name for the imported disk, going by its extension. */
     public String existingDiskFormat() {
         if (existingDisk == null) return "";

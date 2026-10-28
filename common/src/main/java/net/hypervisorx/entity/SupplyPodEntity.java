@@ -48,6 +48,10 @@ public class SupplyPodEntity extends Entity {
         noCulling = true;
     }
 
+    public UUID customer() {
+        return customer;
+    }
+
     public static SupplyPodEntity create(ServerLevel level, Vec3 pos, List<ItemStack> cargo, UUID customer) {
         SupplyPodEntity pod = new SupplyPodEntity(HvxEntities.SUPPLY_POD.get(), level);
         pod.setPos(pos);
@@ -110,9 +114,28 @@ public class SupplyPodEntity extends Entity {
         BlockPos pos = blockPosition();
         for (int i = 0; i < 4 && !level.getBlockState(pos).canBeReplaced(); i++) pos = pos.above();
         List<ItemStack> leftovers = new ArrayList<>(cargo);
+        ServerPlayer buyer = customer == null ? null : level.getServer().getPlayerList().getPlayer(customer);
+        boolean inVoid = pos.getY() < level.getMinBuildHeight();
+        // only drop the crate where the buyer could build themselves (spawn protection, claim mods that hook mayInteract)
+        boolean allowed = !inVoid && (buyer == null || level.mayInteract(buyer, pos));
+        if (!allowed) {
+            if (buyer != null) {
+                for (ItemStack s : leftovers) {
+                    if (!buyer.getInventory().add(s)) buyer.drop(s, false);
+                }
+                buyer.sendSystemMessage(Component.translatable("hypervisorx.msg.pod_redirected"));
+            } else {
+                BlockPos spawn = level.getSharedSpawnPos();
+                for (ItemStack s : leftovers) level.addFreshEntity(new ItemEntity(level, spawn.getX() + 0.5, spawn.getY() + 1, spawn.getZ() + 0.5, s));
+            }
+            cargo.clear();
+            discard();
+            return;
+        }
         if (level.getBlockState(pos).canBeReplaced()) {
             level.setBlockAndUpdate(pos, HvxBlocks.DELIVERY_CRATE.get().defaultBlockState());
             if (level.getBlockEntity(pos) instanceof CrateBlockEntity crate) {
+                crate.setOwner(customer);
                 NonNullList<ItemStack> rest = crate.fill(cargo);
                 leftovers = new ArrayList<>(rest);
             }

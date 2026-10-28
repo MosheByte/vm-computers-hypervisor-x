@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "DRD",
+    "QPQ",
+    "DRD"
+  ],
+  "key": {
+    "D": {
+      "item": "minecraft:diamond"
+    },
+    "R": {
+      "item": "minecraft:redstone"
+    },
+    "Q": {
+      "item": "minecraft:quartz"
+    },
+    "P": {
+      "item": "hypervisorx:cpu_orbitcore_q4"
+    }
+  },
+  "result": {
+    "id": "hypervisorx:cpu_orbitcore_x8",
+    "count": 1
+  }
+}

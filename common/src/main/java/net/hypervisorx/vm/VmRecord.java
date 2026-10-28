@@ -12,7 +12,6 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
 
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
@@ -54,7 +53,8 @@ public final class VmRecord {
     public String target = "";
     public boolean efi;
     public Access access = Access.PRIVATE;
-    public final Set<UUID> trusted = new HashSet<>();
+    /** concurrent set, input packets read it off the server thread. */
+    public final Set<UUID> trusted = java.util.concurrent.ConcurrentHashMap.newKeySet();
     /** how many monitors the desktop spans (multiplies the horizontal res). */
     public int spanMonitors = 1;
     /** rack VMs only: what they get from the cluster pool. */
@@ -68,6 +68,8 @@ public final class VmRecord {
     public BlockPos hostPos;
     public long createdAt = System.currentTimeMillis();
     public long lastBoot;
+    /** last time the computer with this VM was loaded in the world or carried around by a player. */
+    public long lastSeen = System.currentTimeMillis();
 
     public VmRecord(UUID id, HostKind kind, String name, UUID owner) {
         this.id = id;
@@ -103,6 +105,7 @@ public final class VmRecord {
         if (hostPos != null) t.put("HostPos", NbtUtils.writeBlockPos(hostPos));
         t.putLong("Created", createdAt);
         t.putLong("LastBoot", lastBoot);
+        t.putLong("LastSeen", lastSeen);
         return t;
     }
 
@@ -136,6 +139,7 @@ public final class VmRecord {
         if (t.contains("HostPos")) r.hostPos = NbtUtils.readBlockPos(t, "HostPos").orElse(null);
         r.createdAt = t.getLong("Created");
         r.lastBoot = t.getLong("LastBoot");
+        r.lastSeen = t.contains("LastSeen") ? t.getLong("LastSeen") : System.currentTimeMillis();
         return r;
     }
 

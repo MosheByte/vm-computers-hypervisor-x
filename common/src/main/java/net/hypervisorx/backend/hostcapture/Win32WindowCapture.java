@@ -86,7 +86,11 @@ final class Win32WindowCapture implements AutoCloseable {
             if (memDc == null || w != width || h != height) {
                 release();
                 memDc = g.CreateCompatibleDC(windowDc);
-                bitmap = g.CreateCompatibleBitmap(windowDc, w, h);
+                bitmap = memDc == null ? null : g.CreateCompatibleBitmap(windowDc, w, h);
+                if (memDc == null || bitmap == null) {
+                    release();
+                    return null;
+                }
                 previous = g.SelectObject(memDc, bitmap);
                 buffer = new Memory((long) w * h * 4);
                 width = w;

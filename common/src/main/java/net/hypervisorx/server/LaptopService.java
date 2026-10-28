@@ -88,7 +88,7 @@ public final class LaptopService {
             p.displayClientMessage(Component.translatable("hypervisorx.msg.battery_empty", r.name).withStyle(ChatFormatting.RED), true);
             return;
         }
-        Component err = m.start(r, laptop.model().spec(), m.host(r));
+        Component err = m.start(p, r, laptop.model().spec(), m.host(r));
         if (err != null) {
             p.sendSystemMessage(err.copy().withStyle(ChatFormatting.RED));
         } else {

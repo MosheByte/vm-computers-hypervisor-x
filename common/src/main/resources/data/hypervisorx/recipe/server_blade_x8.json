@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "III",
+    "PRP",
+    "III"
+  ],
+  "key": {
+    "I": {
+      "item": "minecraft:iron_ingot"
+    },
+    "P": {
+      "item": "hypervisorx:cpu_orbitcore_x8"
+    },
+    "R": {
+      "item": "hypervisorx:ram_8gb"
+    }
+  },
+  "result": {
+    "id": "hypervisorx:server_blade_x8",
+    "count": 1
+  }
+}

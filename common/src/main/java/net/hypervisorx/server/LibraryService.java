@@ -39,13 +39,20 @@ public final class LibraryService {
         List<String> windows = admin && cfg.allowHostWindowCapture ? HostCaptureBackend.windowTitles() : List.of();
         if (windows.size() > 64) windows = windows.subList(0, 64);
         boolean host = m.server().isSingleplayerOwner(p.getGameProfile());
-        Services.PLATFORM.sendToPlayer(p, new S2C.Library(backends, ImageLibrary.list(), ImageLibrary.jobs(), windows, admin, host,
+        // files linked from the host's own PC only show up for ops
+        List<S2C.ImageEntry> images = admin ? ImageLibrary.list() : ImageLibrary.list().stream().filter(e -> !e.linked()).toList();
+        Services.PLATFORM.sendToPlayer(p, new S2C.Library(backends, images, ImageLibrary.jobs(), windows, admin, host,
                 admin ? HvxConfig.GSON.toJson(cfg) : "", admin ? HostLimits.totalRamMb() : 0, admin ? HostLimits.cpus() : 0));
     }
+
+    private static final java.util.Map<java.util.UUID, net.hypervisorx.util.RateLimiter> LIMITS = new java.util.concurrent.ConcurrentHashMap<>();
 
     public static void action(ServerPlayer p, C2S.LibraryAction a) {
         VmManager m = VmManager.get();
         if (m == null) return;
+        // library screen refreshes about once a second while downloads run, anything faster is spam
+        if (LIMITS.size() > 512) LIMITS.clear();
+        if (!LIMITS.computeIfAbsent(p.getUUID(), k -> new net.hypervisorx.util.RateLimiter(3, 6)).tryAcquire()) return;
         boolean admin = m.isAdmin(p);
         try {
             switch (a.action()) {
@@ -102,7 +109,8 @@ public final class LibraryService {
         try {
             HvxConfig updated = HvxConfig.GSON.fromJson(c.json(), HvxConfig.class);
             if (updated == null) throw new JsonParseException("empty");
-            HvxConfig.replace(updated);
+            boolean atHost = !m.server().isDedicatedServer() && m.server().isSingleplayerOwner(p.getGameProfile());
+            HvxConfig.get().applyFromPlayer(updated, atHost);
             HyperVisorX.LOG.info("{} updated the HyperVisor X server settings", p.getGameProfile().getName());
             p.sendSystemMessage(Component.translatable("hypervisorx.msg.settings_saved").withStyle(ChatFormatting.GREEN));
             BackendRegistry.rescan(HvxConfig.get().backendContext()).thenRun(() -> m.server().execute(() -> send(p)));

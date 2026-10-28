@@ -51,10 +51,37 @@ public final class HvxCommands {
                 }))
                 .then(Commands.literal("info").then(Commands.argument("vm", StringArgumentType.word()).executes(HvxCommands::info)))
                 .then(Commands.literal("reload").requires(s -> s.hasPermission(2)).executes(ctx -> {
-                    HvxConfig.replace(HvxConfig.get().copy());
-                    ctx.getSource().sendSuccess(() -> Component.literal("HyperVisor X config reloaded"), true);
+                    HvxConfig.reloadFromDisk();
+                    ctx.getSource().sendSuccess(() -> Component.literal("HyperVisor X config reloaded from config/hypervisorx-server.json"), true);
                     return 1;
-                })));
+                }))
+                .then(Commands.literal("gc").requires(s -> s.hasPermission(3))
+                        .then(Commands.argument("days", com.mojang.brigadier.arguments.IntegerArgumentType.integer(1, 3650))
+                                .executes(ctx -> gc(ctx, false))
+                                .then(Commands.literal("confirm").executes(ctx -> gc(ctx, true))))));
+    }
+
+    /** Lists VMs whose computer hasn't been loaded or carried for N days. Add "confirm" to delete them. */
+    private static int gc(CommandContext<CommandSourceStack> ctx, boolean confirm) {
+        VmManager m = VmManager.get();
+        if (m == null) return 0;
+        int days = com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "days");
+        java.util.List<VmRecord> stale = m.staleRecords(days);
+        if (stale.isEmpty()) {
+            ctx.getSource().sendSuccess(() -> Component.literal("No VMs unseen for " + days + " days."), false);
+            return 1;
+        }
+        for (VmRecord r : stale) {
+            Component line = Component.literal((confirm ? " deleted " : " ") + r.id + "  '" + r.name + "'  owner " + r.ownerName
+                    + "  last seen " + java.time.Instant.ofEpochMilli(r.lastSeen)).withStyle(confirm ? ChatFormatting.RED : ChatFormatting.GRAY);
+            ctx.getSource().sendSuccess(() -> line, false);
+            if (confirm) m.delete(r.id, true);
+        }
+        if (!confirm) {
+            ctx.getSource().sendSuccess(() -> Component.literal(stale.size() + " VM(s). Run /hvx gc " + days
+                    + " confirm to delete them and their disks.").withStyle(ChatFormatting.YELLOW), false);
+        }
+        return stale.size();
     }
 
     private static int backends(CommandContext<CommandSourceStack> ctx) {

@@ -33,20 +33,12 @@ public final class StoreCatalog {
 
     /** currency items and what they're worth, cheapest first (we pay with the small coins first). */
     public static final List<Map.Entry<Item, Integer>> CURRENCY = List.of(
-            Map.entry(Items.IRON_INGOT, 1), Map.entry(Items.GOLD_INGOT, 3), Map.entry(Items.EMERALD, 4), Map.entry(Items.DIAMOND, 9));
+            Map.entry(Items.IRON_INGOT, 1), Map.entry(Items.GOLD_INGOT, 3), Map.entry(Items.EMERALD, 6), Map.entry(Items.DIAMOND, 16),
+            Map.entry(Items.NETHERITE_INGOT, 64));
 
     private static final Map<String, Product> PRODUCTS = new LinkedHashMap<>();
 
     static {
-        bundle("starter_pc", 80, List.of(l(HvxItems.RETRO_PC), l(HvxItems.CPU_Q4), l(HvxItems.RAM_4, 2), l(HvxItems.GPU_IGPU),
-                l(HvxItems.HDD), l(HvxItems.MONITOR), l(HvxItems.KEYBOARD), l(HvxItems.MOUSE), l(HvxItems.HDMI_CABLE)));
-        bundle("streamer_setup", 290, List.of(l(HvxItems.GAMING_TOWER), l(HvxItems.CPU_X8), l(HvxItems.RAM_16, 2), l(HvxItems.GPU_GX),
-                l(HvxItems.NVME), l(HvxItems.CURVED_MONITOR), l(HvxItems.KEYBOARD), l(HvxItems.MOUSE), l(HvxItems.SPEAKERS),
-                l(HvxItems.HDMI_CABLE, 2)));
-        bundle("server_rack_kit", 620, List.of(l(HvxItems.SERVER_RACK, 3), l(HvxItems.BLADE_X16, 2), l(HvxItems.ENTERPRISE_HDD, 2),
-                l(HvxItems.NVME), l(HvxItems.WIFI_CARD), l(HvxItems.GPIO_CARD), l(HvxItems.VIDEO_WALL, 16), l(HvxItems.HDMI_CABLE, 4)));
-        bundle("mobile_pro", 150, List.of(l(HvxItems.PRO_LAPTOP), l(HvxItems.USB_DRIVE), l(HvxItems.WIFI_CARD)));
-
         single("cpu_orbitcore_d2", Category.CPU, 8, HvxItems.CPU_D2);
         single("cpu_orbitcore_q4", Category.CPU, 16, HvxItems.CPU_Q4);
         single("cpu_orbitcore_x8", Category.CPU, 40, HvxItems.CPU_X8);
@@ -85,6 +77,16 @@ public final class StoreCatalog {
         single("gaming_mouse", Category.PERIPHERALS, 2, HvxItems.MOUSE);
         single("desktop_speakers", Category.PERIPHERALS, 4, HvxItems.SPEAKERS);
         single("hdmi_cable", Category.PERIPHERALS, 2, HvxItems.HDMI_CABLE);
+        // bundles are always 10% off vs buying the parts one by one
+        bundle("starter_pc", List.of(l(HvxItems.RETRO_PC), l(HvxItems.CPU_Q4), l(HvxItems.RAM_4, 2), l(HvxItems.GPU_IGPU),
+                l(HvxItems.HDD), l(HvxItems.MONITOR), l(HvxItems.KEYBOARD), l(HvxItems.MOUSE), l(HvxItems.HDMI_CABLE)));
+        bundle("streamer_setup", List.of(l(HvxItems.GAMING_TOWER), l(HvxItems.CPU_X8), l(HvxItems.RAM_16, 2), l(HvxItems.GPU_GX),
+                l(HvxItems.NVME), l(HvxItems.CURVED_MONITOR), l(HvxItems.KEYBOARD), l(HvxItems.MOUSE), l(HvxItems.SPEAKERS),
+                l(HvxItems.HDMI_CABLE, 2)));
+        bundle("server_rack_kit", List.of(l(HvxItems.SERVER_RACK, 3), l(HvxItems.BLADE_X16, 2), l(HvxItems.ENTERPRISE_HDD, 2),
+                l(HvxItems.NVME), l(HvxItems.WIFI_CARD), l(HvxItems.GPIO_CARD), l(HvxItems.VIDEO_WALL, 16), l(HvxItems.HDMI_CABLE, 4)));
+        bundle("mobile_pro", List.of(l(HvxItems.PRO_LAPTOP), l(HvxItems.USB_DRIVE), l(HvxItems.WIFI_CARD)));
+
     }
 
     private StoreCatalog() {
@@ -98,8 +100,14 @@ public final class StoreCatalog {
         return new Line(item, count);
     }
 
-    private static void bundle(String id, int price, List<Line> lines) {
-        PRODUCTS.put(id, new Product(id, Category.BUNDLES, price, lines, "store.hypervisorx.bundle." + id));
+    private static void bundle(String id, List<Line> lines) {
+        long sum = 0;
+        for (Line l : lines) {
+            Product single = PRODUCTS.values().stream().filter(p -> !p.isBundle() && p.contents().get(0).item() == l.item()).findFirst()
+                    .orElseThrow(() -> new IllegalStateException("bundle " + id + " contains an item that is not sold on its own"));
+            sum += (long) single.price() * l.count();
+        }
+        PRODUCTS.put(id, new Product(id, Category.BUNDLES, (int) Math.max(1, Math.round(sum * 0.9)), lines, "store.hypervisorx.bundle." + id));
     }
 
     private static void single(String id, Category c, int price, Supplier<? extends Item> item) {

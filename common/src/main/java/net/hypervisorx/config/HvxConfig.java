@@ -23,6 +23,7 @@ import java.util.Map;
 public final class HvxConfig {
     public static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     private static volatile HvxConfig instance;
+    private static final List<String> KNOWN_BACKENDS = List.of("vmware", "qemu", "virtualbox", "embedded", "hostcapture");
 
     /** Order "auto" tries the backends in. */
     public List<String> backendPreference = new ArrayList<>(List.of("vmware", "qemu", "virtualbox", "embedded"));
@@ -40,11 +41,21 @@ public final class HvxConfig {
     public int maxBandwidthPerViewerKiB = 4096;
     /** 24 = lossless RGB888, 16 = RGB565 (half the bandwidth for remote players). */
     public int streamColorDepth = 24;
-    public int maxCoresPerVm = 16;
-    public int maxRamMbPerVm = 65536;
+    public int maxCoresPerVm = 8;
+    public int maxRamMbPerVm = 16384;
     /** Max percent of the host's physical RAM that all VMs together can take. */
-    public int maxHostRamPercent = 75;
-    public int maxRunningVms = 8;
+    public int maxHostRamPercent = 60;
+    public int maxRunningVms = 6;
+    /** How many running VMs one player can own at once (ops are exempt). */
+    public int maxRunningVmsPerPlayer = 2;
+    /** Total RAM one player's running VMs can use together, in MiB (ops are exempt). */
+    public int maxRamMbPerPlayer = 16384;
+    /** Permission level needed to boot VMware/VirtualBox/QEMU machines (2 = ops, 0 = everyone). Embedded VMs are always allowed. */
+    public int minPermissionForHostBackends = 2;
+    /** Max distance in blocks between a player and a screen for the server to still send them its stream. */
+    public int maxWatchDistance = 160;
+    /** VMs whose computer never shows up again (burned item, deleted block) get cleaned up after this many days. 0 = never. */
+    public int orphanVmDays = 30;
     /** suspend | shutdown | kill: what running VMs do when the world closes. */
     public String onServerStop = "suspend";
     public boolean storeEnabled = true;
@@ -93,10 +104,38 @@ public final class HvxConfig {
         return c;
     }
 
+    /** Re-reads the file from disk ({@code /hvx reload}). */
+    public static synchronized void reloadFromDisk() {
+        instance = load();
+    }
+
     public static synchronized void replace(HvxConfig updated) {
         updated.sanitize();
         instance = updated;
         updated.save();
+    }
+
+    /**
+     * Applies settings edited in-game. Anything that makes the server launch programs or exposes the
+     * host (executable paths, host window capture, VirtualBox web-service auth) can only be changed
+     * by whoever's sitting at the host machine (singleplayer/LAN host), never by ops connecting over
+     * the network. Dedicated servers change those in the config file.
+     */
+    public synchronized void applyFromPlayer(HvxConfig incoming, boolean atHostMachine) {
+        replace(merged(incoming, atHostMachine));
+    }
+
+    /** What the settings end up as after a player's edit (host-only fields stay put unless they're at the host machine). */
+    public HvxConfig merged(HvxConfig incoming, boolean atHostMachine) {
+        HvxConfig next = incoming.copy();
+        if (!atHostMachine) {
+            next.executablePaths = new LinkedHashMap<>(executablePaths);
+            next.allowHostWindowCapture = allowHostWindowCapture;
+            next.allowVirtualBoxAuthChange = allowVirtualBoxAuthChange;
+            next.virtualBoxWebPort = virtualBoxWebPort;
+            next.minPermissionForHostBackends = minPermissionForHostBackends;
+        }
+        return next;
     }
 
     public HvxConfig copy() {
@@ -109,8 +148,12 @@ public final class HvxConfig {
         if (backendPreference == null || backendPreference.isEmpty()) {
             backendPreference = new ArrayList<>(List.of("vmware", "qemu", "virtualbox", "embedded"));
         }
+        backendPreference.removeIf(id -> !KNOWN_BACKENDS.contains(id));
+        if (backendPreference.isEmpty()) backendPreference = new ArrayList<>(List.of("embedded"));
         if (executablePaths == null) executablePaths = new LinkedHashMap<>();
-        if (qemuAccelerator == null) qemuAccelerator = "auto";
+        // never run programs off a network location
+        executablePaths.replaceAll((k, v) -> v == null || net.hypervisorx.util.Processes.isNetworkPath(v) ? "" : v.strip());
+        if (qemuAccelerator == null || !List.of("auto", "kvm", "whpx", "hvf", "tcg").contains(qemuAccelerator)) qemuAccelerator = "auto";
         if (onServerStop == null) onServerStop = "suspend";
         streamFps = clamp(streamFps, 5, 120);
         maxBandwidthPerViewerKiB = clamp(maxBandwidthPerViewerKiB, 64, 1 << 20);
@@ -119,6 +162,11 @@ public final class HvxConfig {
         maxRamMbPerVm = clamp(maxRamMbPerVm, 256, 1 << 20);
         maxHostRamPercent = clamp(maxHostRamPercent, 10, 95);
         maxRunningVms = clamp(maxRunningVms, 1, 64);
+        maxRunningVmsPerPlayer = clamp(maxRunningVmsPerPlayer, 1, 64);
+        maxRamMbPerPlayer = clamp(maxRamMbPerPlayer, 256, 1 << 22);
+        minPermissionForHostBackends = clamp(minPermissionForHostBackends, 0, 4);
+        maxWatchDistance = clamp(maxWatchDistance, 16, 4096);
+        orphanVmDays = clamp(orphanVmDays, 0, 3650);
         laptopBatteryTicks = clamp(laptopBatteryTicks, 20 * 30, 20 * 60 * 60 * 24);
         embeddedRamMb = clamp(embeddedRamMb, 16, 256);
         audioRange = clamp(audioRange, 4, 128);

@@ -179,10 +179,19 @@ public final class FrameStream {
     }
 
     private EncodedTile encode(int t, boolean delta, int flags) {
+        if ((flags & EncodedTile.DEFLATE) == 0) return encodeUncached(t, delta, flags);
         Cache c = caches.computeIfAbsent(flags, f -> new Cache(tileCount));
         EncodedTile[] cache = delta ? c.delta : c.raw;
         int[] cacheVersion = delta ? c.deltaVersion : c.rawVersion;
         if (cache[t] != null && cacheVersion[t] == version[t]) return cache[t];
+        EncodedTile tile = encodeUncached(t, delta, flags);
+        cache[t] = tile;
+        cacheVersion[t] = version[t];
+        return tile;
+    }
+
+    /** builds one tile. the uncompressed singleplayer path skips the cache (one viewer, nothing to reuse). */
+    private EncodedTile encodeUncached(int t, boolean delta, int flags) {
         int tx = t % tilesX;
         int ty = t / tilesX;
         int x = tx * Framebuffer.TILE;
@@ -197,9 +206,6 @@ public final class FrameStream {
             data = TileCodec.deflate(packed);
             mode |= EncodedTile.DEFLATE;
         }
-        EncodedTile tile = new EncodedTile(x, y, w, h, mode, data);
-        cache[t] = tile;
-        cacheVersion[t] = version[t];
-        return tile;
+        return new EncodedTile(x, y, w, h, mode, data);
     }
 }

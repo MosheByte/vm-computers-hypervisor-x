@@ -115,7 +115,7 @@ public final class DemoBuilder {
         }
 
         m.data().changed();
-        Component err = m.start(r, retro.builtSpec(), retro);
+        Component err = m.startUnchecked(r, retro.builtSpec(), retro); // unchecked is fine, /hvx demo is op-only
         return err != null ? err : Component.literal("HyperVisor X showroom built - booting the embedded Linux MicroVM...");
     }
 

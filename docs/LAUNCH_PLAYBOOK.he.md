@@ -1,4 +1,4 @@
-# מדריך השקה והפצה – VM Computers: HyperVisor X 1.0.0
+# מדריך השקה והפצה – HyperVisor X 1.0.0
 
 המסמך הזה מיועד לך כמפרסם. כל הטקסטים באנגלית/סינית מוכנים להעתקה כמו שהם.
 עדכן כתובות אם שינית שם משתמש או שם מאגר.
@@ -57,7 +57,7 @@ cd vm-computers-hypervisor-x
    *Run workflow* → בחר את התגית ב-"Use workflow from" והקלד אותה (למשל `v1.0.0`).
 
 ### שם וכותרת
-- **Name:** VM Computers: HyperVisor X
+- **Name:** HyperVisor X
 - **Summary (≤ 120 chars):** Build real working PCs, laptops, server racks & video walls that run Windows/Linux via VMware, VirtualBox, QEMU or built-in Linux.
 
 ### תגיות
@@ -67,7 +67,7 @@ cd vm-computers-hypervisor-x
 
 ### תיאור מוכן (Markdown – להדביק כמו שהוא)
 ```markdown
-# VM Computers: HyperVisor X
+# HyperVisor X
 
 **Real operating systems on real in-game computers.** The successor to the legendary *VM Computers* mod — rebuilt from scratch for Minecraft 1.21.1 on NeoForge and Fabric.
 
@@ -130,17 +130,17 @@ Bug reports and ideas are very welcome in Issues. Full credit to Delta2Force for
 
 ### Planet Minecraft
 1. https://www.planetminecraft.com → Submit → **Mod** → Minecraft 1.21.1, Loader: NeoForge + Fabric.
-2. Title: `VM Computers: HyperVisor X — real Windows & Linux PCs, laptops and video walls`
+2. Title: `HyperVisor X — real Windows & Linux PCs, laptops and video walls`
 3. Tags: `computer, pc, laptop, windows, linux, vmware, virtualbox, qemu, technology, redstone`
 4. הדבק את תיאור ה-Markdown מסעיף 2 (Planet Minecraft תומך ב-BBCode; להמרה אפשר להשתמש בקישור ל-Modrinth כ"Download").
 5. קישור הורדה: Modrinth/CurseForge (לא קובץ ישיר).
 
 ### MCMOD (百科) – שליחת ערך
 1. הרשמה ב-https://www.mcmod.cn → 添加模组 (הוספת מוד) – הערך עובר אישור של עורכי האתר.
-2. מלא: 模组名称 `VM Computers: HyperVisor X`, 简称 `HVX`, 运行环境: 客户端+服务端, 版本: 1.21.1 NeoForge/Fabric, 开源: GitHub.
+2. מלא: 模组名称 `HyperVisor X`, 简称 `HVX`, 运行环境: 客户端+服务端, 版本: 1.21.1 NeoForge/Fabric, 开源: GitHub.
 3. תקציר מוכן בסינית:
 ```
-VM Computers: HyperVisor X（虚拟机电脑：超管X）是经典模组 VM Computers 的全新重制版。
+HyperVisor X（虚拟机电脑：超管X）是经典模组 VM Computers 的全新重制版。
 在 Minecraft 1.21.1（NeoForge / Fabric）中组装真正能运行的电脑、笔记本、服务器机柜和巨型屏幕墙，
 并在其中运行真实的 Windows 和 Linux 系统。
 
@@ -209,7 +209,7 @@ on in-game monitors.
 - VirtualBox: VBoxManage + a persistent vboxwebsrv SOAP session, tile diffing on top of screenshots
 - Encoder: 64x64 tiles, per-tile versions per viewer, XOR deltas + deflate, token-bucket bandwidth
 - Client: dirty-run PBO uploads, trilinear + anisotropic, sharp-bilinear shader for magnification
-- Zero-install fallback: mini-rv32ima ported to Java (~70 MIPS), boots Linux 6.1 in under a second
+- Zero-install fallback: mini-rv32ima ported to Java (~70 MIPS on a modern desktop CPU), boots Linux 6.1 to the login prompt in under a second (0.66 s measured)
 
 Code (GPL-3.0): https://github.com/MosheBarami/vm-computers-hypervisor-x
 ```
@@ -231,7 +231,7 @@ Code (GPL-3.0): https://github.com/MosheBarami/vm-computers-hypervisor-x
 | 24–30 | פוקוס (מסך מלא) | פותחים Minecraft בתוך ה-Windows ונכנסים לעולם | "Minecraft… inside Minecraft" |
 | 30–35 | יציאה ב-Right Ctrl | מבט על החדר: הקיר מציג את המשחק הפנימי, שומעים את הסאונד מהרמקולים | "with real sound 🔊" |
 | 35–41 | ברכבת (Create/רכבת מינקארט) | הדמות מחזיקה לפטופ, PiP בפינה ממשיך להציג את אותו מחשב | "and I can take it on the train" |
-| 41–45 | זום-אאוט + לוגו | לוגו HVX + שם המוד | "VM Computers: HyperVisor X — link in bio" |
+| 41–45 | זום-אאוט + לוגו | לוגו HVX + שם המוד | "HyperVisor X — link in bio" |
 
 **טיפים לצילום**
 - להקלטה: Replay Mod (Fabric) או OBS, 60 FPS, Shaders כמו Complementary כדי שה-RGB יבלוט.

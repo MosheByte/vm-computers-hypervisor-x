@@ -66,7 +66,8 @@ final class VmxFile {
             if (e.getKey().equals(".encoding")) continue;
             String raw = e.getValue();
             int sep = raw.indexOf('\u0000');
-            String value = raw.substring(sep + 1).replace("\"", "|22");
+            // strip control chars, a CR/LF would end the line and let someone inject new keys
+            String value = raw.substring(sep + 1).replaceAll("\\p{Cntrl}", "").replace("\"", "|22");
             sb.append(raw, 0, sep).append(" = \"").append(value).append("\"\n");
         }
         Path tmp = path.resolveSibling(path.getFileName() + ".tmp");

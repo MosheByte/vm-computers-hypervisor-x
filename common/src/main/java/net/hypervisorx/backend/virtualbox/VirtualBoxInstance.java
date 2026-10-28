@@ -37,11 +37,16 @@ final class VirtualBoxInstance implements VmInstance {
     private final int webPort;
     private final int gpioPort;
     private final Framebuffer framebuffer;
-    private final ExecutorService input = Executors.newSingleThreadExecutor(r -> {
+    /** Bounded on purpose: if input packets flood in, the oldest get dropped instead of eating server memory. */
+    private final ExecutorService input = new java.util.concurrent.ThreadPoolExecutor(1, 1, 0L, java.util.concurrent.TimeUnit.MILLISECONDS,
+            new java.util.concurrent.ArrayBlockingQueue<>(256), r -> {
         Thread t = new Thread(r, "HyperVisorX-VBoxInput");
         t.setDaemon(true);
         return t;
-    });
+    }, new java.util.concurrent.ThreadPoolExecutor.DiscardOldestPolicy());
+    private volatile String machineRef;
+    private int lastShotHash;
+    private int lastShotLength = -1;
     private final AtomicLong pendingPointer = new AtomicLong(Long.MIN_VALUE);
     private volatile boolean pointerQueued;
     private volatile VboxSoap soap;
@@ -83,8 +88,10 @@ final class VirtualBoxInstance implements VmInstance {
     private synchronized void openSession() throws IOException {
         closeSession();
         soap = new VboxSoap(webPort);
-        vbox = soap.call("IWebsessionManager_logon", "username", "", "password", "").ret();
+        String[] cred = VboxWebService.credentials();
+        vbox = soap.call("IWebsessionManager_logon", "username", cred[0], "password", cred[1]).ret();
         String machine = soap.call("IVirtualBox_findMachine", "_this", vbox, "nameOrId", spec.machineName()).ret();
+        machineRef = machine;
         session = soap.call("IWebsessionManager_getSessionObject", "refIVirtualBox", vbox).ret();
         IOException last = null;
         for (int attempt = 0; attempt < 20; attempt++) {
@@ -142,6 +149,14 @@ final class VirtualBoxInstance implements VmInstance {
                 String b64 = soap.call("IDisplay_takeScreenShotToArray", "_this", display, "screenId", 0,
                         "width", w, "height", h, "bitmapFormat", "PNG").ret();
                 if (b64 != null && !b64.isEmpty()) {
+                    // same screen = same PNG, so skip the decode and the tile diff
+                    int hash = b64.hashCode();
+                    if (hash == lastShotHash && b64.length() == lastShotLength) {
+                        LockSupport.parkNanos(100_000_000L);
+                        continue;
+                    }
+                    lastShotHash = hash;
+                    lastShotLength = b64.length();
                     BufferedImage img = ImageIO.read(new ByteArrayInputStream(Base64.getMimeDecoder().decode(b64)));
                     if (img != null) {
                         int iw = img.getWidth();
@@ -181,13 +196,34 @@ final class VirtualBoxInstance implements VmInstance {
         }
     }
 
+    /** Machine state over the open web service session (no process spawn), VBoxManage as fallback. */
+    private String machineState() throws IOException {
+        VboxSoap s = soap;
+        String m = machineRef;
+        if (s != null && m != null) {
+            try {
+                String st = s.call("IMachine_getState", "_this", m).ret();
+                if (st != null) {
+                    return switch (st) {
+                        case "PoweredOff" -> "poweroff";
+                        case "Aborted", "AbortedSaved" -> "aborted";
+                        case "Saved" -> "saved";
+                        default -> st.toLowerCase(java.util.Locale.ROOT);
+                    };
+                }
+            } catch (IOException ignored) {
+                // session expired, fall through
+            }
+        }
+        return VirtualBoxBackend.vmInfo(manage, spec.machineName()).getOrDefault("VMState", "");
+    }
+
     private void monitorLoop() {
         while (running) {
             LockSupport.parkNanos(3_000_000_000L);
             if (!running) break;
             try {
-                Map<String, String> info = VirtualBoxBackend.vmInfo(manage, spec.machineName());
-                String st = info.getOrDefault("VMState", "");
+                String st = machineState();
                 if (st.equals("poweroff") || st.equals("aborted") || st.equals("saved")) {
                     shutdownLocal(st.equals("aborted") ? State.ERROR : State.STOPPED,
                             st.equals("aborted") ? "The VirtualBox VM process aborted." : st.equals("saved") ? "Suspended." : "Powered off.");

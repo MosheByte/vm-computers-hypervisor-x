@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "LBL",
+    "BPB",
+    "LBL"
+  ],
+  "key": {
+    "L": {
+      "item": "minecraft:leather"
+    },
+    "B": {
+      "item": "minecraft:iron_block"
+    },
+    "P": {
+      "item": "hypervisorx:pro_laptop"
+    }
+  },
+  "result": {
+    "id": "hypervisorx:rugged_laptop",
+    "count": 1
+  }
+}

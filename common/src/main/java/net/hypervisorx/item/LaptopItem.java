@@ -37,6 +37,11 @@ public class LaptopItem extends BlockItem {
         this.model = model;
     }
 
+    @Override
+    public void inventoryTick(ItemStack stack, Level level, net.minecraft.world.entity.Entity entity, int slot, boolean selected) {
+        if (!level.isClientSide && level.getGameTime() % 600 == 0) net.hypervisorx.vm.VmManager.touch(stack.get(HvxComponents.VM_LINK.get()));
+    }
+
     public LaptopModel model() {
         return model;
     }

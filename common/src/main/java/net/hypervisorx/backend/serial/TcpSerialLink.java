@@ -22,7 +22,14 @@ public final class TcpSerialLink implements SerialLink, AutoCloseable {
     private volatile boolean open = true;
     private final Thread thread;
 
+    private final String host;
+
     public TcpSerialLink(int port) {
+        this("127.0.0.1", port);
+    }
+
+    public TcpSerialLink(String host, int port) {
+        this.host = host;
         this.port = port;
         this.thread = new Thread(this::loop, "HyperVisorX-Serial-" + port);
         this.thread.setDaemon(true);
@@ -33,7 +40,7 @@ public final class TcpSerialLink implements SerialLink, AutoCloseable {
         byte[] buf = new byte[4096];
         while (open) {
             try (Socket s = new Socket()) {
-                s.connect(new InetSocketAddress("127.0.0.1", port), 1500);
+                s.connect(new InetSocketAddress(host, port), 1500);
                 s.setTcpNoDelay(true);
                 socket = s;
                 out = s.getOutputStream();

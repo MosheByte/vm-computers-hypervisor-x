@@ -65,19 +65,36 @@ final class VmwareInstance implements VmInstance {
         monitorTask = MONITOR.scheduleWithFixedDelay(this::checkRunning, 5, 5, TimeUnit.SECONDS);
     }
 
+    private static final Object LIST_LOCK = new Object();
+    private static String listOutput = "";
+    private static long listTime;
+
+    /** One shared {@code vmrun list} every few seconds for all VMware VMs, not one process per VM. */
     private boolean isListed() {
-        try {
-            Processes.Result r = Processes.run(30, install.vmrun().toString(), "-T", install.hostType(), "list");
-            String norm = vmx.toAbsolutePath().toString().toLowerCase();
-            return r.output().toLowerCase().lines().anyMatch(l -> l.trim().equals(norm));
-        } catch (IOException e) {
-            return true; // assume running when vmrun is temporarily unresponsive
+        String out;
+        synchronized (LIST_LOCK) {
+            if (System.currentTimeMillis() - listTime > 4000) {
+                try {
+                    listOutput = Processes.run(30, install.vmrun().toString(), "-T", install.hostType(), "list").output().toLowerCase();
+                    listTime = System.currentTimeMillis();
+                } catch (IOException e) {
+                    return true; // vmrun hiccuped, just assume it's still running
+                }
+            }
+            out = listOutput;
         }
+        String norm = vmx.toAbsolutePath().normalize().toString().toLowerCase();
+        return out.lines().anyMatch(l -> l.trim().equals(norm));
     }
 
     private void checkRunning() {
         if (state == State.STOPPED || state == State.ERROR) return;
         if (!isListed()) {
+            // double check with a fresh list before calling the VM gone (the shared one can be a few seconds old)
+            synchronized (LIST_LOCK) {
+                listTime = 0;
+            }
+            if (isListed()) return;
             cleanup();
             setState(State.STOPPED, stopping ? "Powered off." : "The virtual machine stopped.");
         } else if (rfb != null && !rfb.isConnected() && !stopping) {
@@ -174,9 +191,18 @@ final class VmwareInstance implements VmInstance {
                 Processes.Result r = vmrun(120, "stop", vmx.toString(), "soft");
                 if (!r.ok()) {
                     // soft stop goes through VMware Tools, without them there's no way to ask the guest to shut down
-                    message = "Graceful shutdown needs VMware Tools in the guest: " + r.output();
+                    setState(State.STOPPING, "No VMware Tools in the guest - powering off in 10 s");
+                    Thread.sleep(10_000);
+                    stopping = true;
+                    vmrun(120, "stop", vmx.toString(), "hard");
+                    synchronized (LIST_LOCK) {
+                        listTime = 0;
+                    }
+                    checkRunning();
                 }
             } catch (IOException ignored) {
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             }
         }, "HyperVisorX-VMwareStop");
         t.setDaemon(true);

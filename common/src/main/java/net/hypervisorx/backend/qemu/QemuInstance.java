@@ -24,8 +24,11 @@ final class QemuInstance implements VmInstance {
     private final VmLaunchSpec spec;
     private final Process process;
     private final Path log;
+    private final String bindHost;
     private final int vncPort;
     private final int qmpPort;
+    private final java.nio.file.Path qmpSocket;
+    private final String vncPassword;
     private final int gpioPort;
     private final String notes;
     private final Framebuffer framebuffer;
@@ -38,12 +41,16 @@ final class QemuInstance implements VmInstance {
     private volatile boolean stopping;
     private final PcmConverter audio = new PcmConverter(44100, 2, AUDIO_RATE);
 
-    QemuInstance(VmLaunchSpec spec, Process process, Path log, int vncPort, int qmpPort, int gpioPort, String notes) {
+    QemuInstance(VmLaunchSpec spec, Process process, Path log, String bindHost, int vncPort, int qmpPort, Path qmpSocket, String vncPassword,
+                 int gpioPort, String notes) {
         this.spec = spec;
         this.process = process;
         this.log = log;
+        this.bindHost = bindHost;
         this.vncPort = vncPort;
         this.qmpPort = qmpPort;
+        this.qmpSocket = qmpSocket;
+        this.vncPassword = vncPassword;
         this.gpioPort = gpioPort;
         this.notes = notes;
         this.framebuffer = new Framebuffer(spec.width(), spec.height());
@@ -52,14 +59,20 @@ final class QemuInstance implements VmInstance {
 
     void connect() throws IOException {
         try {
-            qmp = QmpClient.connect(qmpPort, 20_000);
+            qmp = qmpSocket != null ? QmpClient.connectUnix(qmpSocket, 20_000) : QmpClient.connect(bindHost, qmpPort, 20_000);
+            // VNC was started with password=on, so set a random per-boot password before we connect
+            com.google.gson.JsonObject pw = new com.google.gson.JsonObject();
+            pw.addProperty("protocol", "vnc");
+            pw.addProperty("password", vncPassword);
+            com.google.gson.JsonObject res = qmp.execute("set_password", pw, 5000);
+            if (res.has("error")) throw new IOException("could not set the VNC password: " + res.get("error"));
             qmp.onEvent(ev -> {
                 String name = ev.get("event").getAsString();
                 if (name.equals("SHUTDOWN") || name.equals("POWERDOWN")) {
                     setState(State.STOPPING, "Guest is shutting down...");
                 }
             });
-            rfb = new RfbClient("127.0.0.1", vncPort, null, framebuffer, 60, new RfbClient.Listener() {
+            rfb = new RfbClient(bindHost, vncPort, vncPassword, framebuffer, 60, new RfbClient.Listener() {
                 @Override
                 public void connected(String desktopName, int width, int height) {
                     String accelNote = accelerationNote();
@@ -84,11 +97,50 @@ final class QemuInstance implements VmInstance {
             });
             rfb.connect(20_000);
             if (spec.audio()) rfb.requestAudio(44100, 2);
-            if (gpioPort > 0) serial = new TcpSerialLink(gpioPort);
+            if (gpioPort > 0) serial = new TcpSerialLink(bindHost, gpioPort);
+            Thread drop = new Thread(this::dropSuspendSnapshot, "HyperVisorX-QemuSnapshot");
+            drop.setDaemon(true);
+            drop.start();
         } catch (IOException e) {
             String tail = logTail();
             process.destroyForcibly();
             throw new IOException(e.getMessage() + (tail.isEmpty() ? "" : " | QEMU said: " + tail), e);
+        }
+    }
+
+    static final String SUSPEND_TAG = "hvx-suspend";
+
+    /**
+     * Saves the whole machine state into the qcow2 disk (internal snapshot) and quits, next launch
+     * resumes with -loadvm. Returns false (caller falls back to a shutdown) if the VM has a disk
+     * that can't hold snapshots (imported non-qcow2 image, USB sticks).
+     */
+    @Override
+    public boolean suspend() {
+        QmpClient q = qmp;
+        if (q == null || spec.existingDisk() != null || !spec.usbDrives().isEmpty()) return false;
+        try {
+            q.hmp("stop", 5000);
+            String out = q.hmp("savevm " + SUSPEND_TAG, 180_000);
+            if (out.toLowerCase(java.util.Locale.ROOT).contains("error")) {
+                q.hmp("cont", 5000);
+                return false;
+            }
+            stopping = true;
+            q.execute("quit", null, 5000);
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    /** Once we've resumed, the snapshot is just wasting disk space, so drop it. */
+    private void dropSuspendSnapshot() {
+        QmpClient q = qmp;
+        if (q == null) return;
+        try {
+            q.hmp("delvm " + SUSPEND_TAG, 60_000);
+        } catch (IOException ignored) {
         }
     }
 
@@ -117,6 +169,12 @@ final class QemuInstance implements VmInstance {
         Processes.releasePort(vncPort);
         Processes.releasePort(qmpPort);
         if (gpioPort > 0) Processes.releasePort(gpioPort);
+        if (qmpSocket != null) {
+            try {
+                java.nio.file.Files.deleteIfExists(qmpSocket);
+            } catch (IOException ignored) {
+            }
+        }
         int code = process.exitValue();
         if (stopping || code == 0) {
             setState(State.STOPPED, "Powered off.");

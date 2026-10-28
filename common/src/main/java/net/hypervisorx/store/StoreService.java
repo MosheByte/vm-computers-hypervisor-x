@@ -28,10 +28,32 @@ public final class StoreService {
     private StoreService() {
     }
 
+    private static final java.util.Map<java.util.UUID, Long> LAST_ORDER = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final long COOLDOWN_MS = 10_000;
+    private static final int MAX_PODS_IN_FLIGHT = 2;
+
     public static void order(ServerPlayer player, C2S.StoreOrder order) {
         HvxConfig cfg = HvxConfig.get();
         if (!cfg.storeEnabled) {
             reply(player, false, Component.translatable("hypervisorx.store.disabled"));
+            return;
+        }
+        // must actually be holding the tablet, otherwise any client could just send the packet
+        if (!(player.getMainHandItem().getItem() instanceof net.hypervisorx.item.StoreTabletItem)
+                && !(player.getOffhandItem().getItem() instanceof net.hypervisorx.item.StoreTabletItem)) {
+            reply(player, false, Component.translatable("hypervisorx.store.need_tablet"));
+            return;
+        }
+        long now = System.currentTimeMillis();
+        Long last = LAST_ORDER.get(player.getUUID());
+        if (last != null && now - last < COOLDOWN_MS) {
+            reply(player, false, Component.translatable("hypervisorx.store.cooldown", (COOLDOWN_MS - (now - last)) / 1000 + 1));
+            return;
+        }
+        int inFlight = player.serverLevel().getEntities(net.hypervisorx.registry.HvxEntities.SUPPLY_POD.get(),
+                player.getBoundingBox().inflate(512), pod -> player.getUUID().equals(pod.customer())).size();
+        if (inFlight >= MAX_PODS_IN_FLIGHT) {
+            reply(player, false, Component.translatable("hypervisorx.store.pods_busy"));
             return;
         }
         if (order.products().size() != order.quantities().size() || order.products().isEmpty() || order.products().size() > 64) {
@@ -84,6 +106,7 @@ public final class StoreService {
         double y = Math.min(level.getMaxBuildHeight() - 3, Math.max(at.getY() + 90, level.getHeight(Heightmap.Types.MOTION_BLOCKING, at.getX(), at.getZ()) + 60));
         SupplyPodEntity pod = SupplyPodEntity.create(level, new Vec3(at.getX() + 0.5 + ox, y, at.getZ() + 0.5 + oz), cargo, player.getUUID());
         level.addFreshEntity(pod);
+        LAST_ORDER.put(player.getUUID(), now);
         level.playSound(null, at, HvxSounds.ORDER_CONFIRMED.get(), SoundSource.PLAYERS, 0.8f, 1f);
         reply(player, true, free ? Component.translatable("hypervisorx.store.ordered_free")
                 : Component.translatable("hypervisorx.store.ordered", total));
@@ -112,6 +135,18 @@ public final class StoreService {
                 int take = (int) Math.min(need, s.getCount());
                 s.shrink(take);
                 remaining -= (long) take * value;
+            }
+        }
+        // a big coin (diamond, netherite) can overpay, so hand back change in smaller coins
+        long change = -remaining;
+        for (int k = StoreCatalog.CURRENCY.size() - 1; k >= 0 && change > 0; k--) {
+            Map.Entry<Item, Integer> c = StoreCatalog.CURRENCY.get(k);
+            long n = change / c.getValue();
+            change -= n * c.getValue();
+            while (n > 0) {
+                ItemStack coins = new ItemStack(c.getKey(), (int) Math.min(n, c.getKey().getDefaultMaxStackSize()));
+                n -= coins.getCount();
+                if (!inv.add(coins)) inv.player.drop(coins, false);
             }
         }
         inv.setChanged();

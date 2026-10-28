@@ -16,7 +16,22 @@ import net.minecraft.world.level.block.state.BlockState;
 
 /** OrbitTech delivery crate, what a supply pod leaves behind after it lands. */
 public class CrateBlockEntity extends BaseContainerBlockEntity {
+    /** How long a fresh delivery is buyer-only (after that anyone can open it, like a chest). */
+    public static final long PRIVATE_MS = 10 * 60 * 1000L;
     private NonNullList<ItemStack> items = NonNullList.withSize(27, ItemStack.EMPTY);
+    private java.util.UUID owner;
+    private long deliveredAt;
+
+    public void setOwner(java.util.UUID owner) {
+        this.owner = owner;
+        this.deliveredAt = System.currentTimeMillis();
+        setChanged();
+    }
+
+    /** Buyer and ops always, everyone else once the private window is over. */
+    public boolean mayAccess(net.minecraft.world.entity.player.Player p) {
+        return owner == null || owner.equals(p.getUUID()) || p.hasPermissions(2) || System.currentTimeMillis() - deliveredAt > PRIVATE_MS;
+    }
 
     public CrateBlockEntity(BlockPos pos, BlockState state) {
         super(HvxBlockEntities.CRATE.get(), pos, state);
@@ -73,6 +88,10 @@ public class CrateBlockEntity extends BaseContainerBlockEntity {
     protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.saveAdditional(tag, registries);
         ContainerHelper.saveAllItems(tag, items, registries);
+        if (owner != null) {
+            tag.putUUID("Owner", owner);
+            tag.putLong("DeliveredAt", deliveredAt);
+        }
     }
 
     @Override
@@ -80,5 +99,7 @@ public class CrateBlockEntity extends BaseContainerBlockEntity {
         super.loadAdditional(tag, registries);
         items = NonNullList.withSize(getContainerSize(), ItemStack.EMPTY);
         ContainerHelper.loadAllItems(tag, items, registries);
+        owner = tag.hasUUID("Owner") ? tag.getUUID("Owner") : null;
+        deliveredAt = tag.getLong("DeliveredAt");
     }
 }

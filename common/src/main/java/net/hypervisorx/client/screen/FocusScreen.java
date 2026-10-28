@@ -102,8 +102,19 @@ public class FocusScreen extends Screen {
         g.fill(0, 0, width, height, 0xFF000000);
     }
 
+    /** alt-tab with a key held would leave it stuck down in the guest, so let go of everything when we lose focus */
+    private void releaseAll() {
+        for (int k : heldKeys) Services.PLATFORM.sendToServer(new C2S.Input(vm, C2S.Input.KEY, k, 0, 0, 0));
+        heldKeys.clear();
+        if (buttons != 0 && lastVmX >= 0) {
+            buttons = 0;
+            Services.PLATFORM.sendToServer(new C2S.Input(vm, C2S.Input.POINTER, lastVmX, lastVmY, 0, 0));
+        }
+    }
+
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        if (!minecraft.isWindowActive() && (!heldKeys.isEmpty() || buttons != 0)) releaseAll();
         renderBackground(g, mouseX, mouseY, partialTick);
         ScreenTracker.markVisible(vm, null);
         ScreenTextureManager.uploadAll();
@@ -146,7 +157,7 @@ public class FocusScreen extends Screen {
                     width / 2, y + 48, UiKit.MUTED);
         }
         if (overlayVisible()) {
-            g.fillGradient(0, 0, width, 24, 0xF2171B22, 0xF2101318);
+            g.fillGradient(0, 0, width, 24, 0xFF171B22, 0xFF101318);
             UiKit.accentLine(g, 0, 24, width);
             String name = status == null ? "" : status.name();
             String info = status == null ? "" : String.format("%s  %dx%d  %.0f fps  [%s]", status.state(), status.width(), status.height(),

@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "GDG",
+    "RPR",
+    "GDG"
+  ],
+  "key": {
+    "G": {
+      "item": "minecraft:gold_ingot"
+    },
+    "D": {
+      "item": "minecraft:diamond"
+    },
+    "R": {
+      "item": "minecraft:redstone"
+    },
+    "P": {
+      "item": "hypervisorx:gpu_orbitforce_gt"
+    }
+  },
+  "result": {
+    "id": "hypervisorx:gpu_orbitforce_gx",
+    "count": 1
+  }
+}

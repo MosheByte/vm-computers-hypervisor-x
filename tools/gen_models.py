@@ -276,14 +276,17 @@ def retro_bezel(on):
         for y in range(h - 5, h - 1, 2):
             c.hline(2, w - 3, y, shade(BEIGE, 0.72))
         # 7-segment MHz display + LEDs + turbo/reset + key lock
-        dx, dy = 2, h - 14
-        c.rect(dx, dy, dx + 8, dy + 6, hexc("140c0c"))
-        seg = hexc("ff3b2f") if on else hexc("3a1714")
-        c.text(dx + 1, dy + 1, "66", seg)
-        c.set(dx + 10, dy + 1, LED_G if on else hexc("2f4a35"))
-        c.set(dx + 10, dy + 4, LED_A if on else hexc("4a3d24"))
-        c.rect(dx, dy + 8, dx + 1, dy + 9, shade(BEIGE, 0.7))
-        c.rect(dx + 3, dy + 8, dx + 4, dy + 9, shade(BEIGE, 0.7))
+        # small 2-digit turbo display: two 2x3 "6" glyphs in a 7x5 smoked window
+        dx, dy = 2, h - 12
+        c.rect(dx, dy, dx + 6, dy + 4, hexc("1a1010"))
+        seg = hexc("d9382b") if on else hexc("341513")
+        for ox in (1, 4):
+            for (px, py) in ((0, 0), (1, 0), (0, 1), (0, 2), (1, 2), (1, 1)):
+                c.set(dx + ox + px, dy + 1 + py, seg)
+        c.set(dx + 8, dy + 1, LED_G if on else hexc("2f4a35"))
+        c.set(dx + 8, dy + 3, LED_A if on else hexc("4a3d24"))
+        c.rect(dx, dy + 6, dx + 1, dy + 7, shade(BEIGE, 0.7))
+        c.rect(dx + 3, dy + 6, dx + 4, dy + 7, shade(BEIGE, 0.7))
         c.disc(w - 4.5, dy + 1.5, 1.3, hexc("9aa0a8"))
         c.set(w - 5, dy + 1, hexc("2b2f36"))
         # badge
@@ -336,11 +339,14 @@ def retro_back(c):
 
 
 def crt_glass(c):
-    c.rect(0, 0, c.w - 1, c.h - 1, hexc("0e110f"))
     for y in range(c.h):
         for x in range(c.w):
             d = ((x - c.w / 2) / (c.w / 2)) ** 2 + ((y - c.h / 2) / (c.h / 2)) ** 2
-            c.set(x, y, mix(hexc("1a201c"), hexc("070908"), min(1, d)))
+            c.set(x, y, mix(hexc("2c3531"), hexc("0b0e0c"), min(1, d * 0.9)))
+    # curved reflection highlight in the upper left
+    for k in range(c.w // 3):
+        c.set(3 + k, 3 + k // 3, (255, 255, 255, 46))
+        c.set(3 + k, 4 + k // 3, (255, 255, 255, 22))
 
 
 def crt_chin(c):
@@ -416,6 +422,12 @@ def crt_monitor():
     m.box([0.5, 0.5, 1.5], [15.5, 2.5, 2], north=crt_chin, east=bz, west=bz, down=bz, up=flat(BEIGE_D))
     m.box([13.5, 2.5, 1.5], [15.5, 11, 2], north=bz, east=bz, west=flat(BEIGE_D))
     m.box([0.5, 2.5, 1.5], [2.5, 11, 2], north=bz, west=bz, east=flat(BEIGE_D))
+    # inner chamfer: a darker step between bezel and tube gives the opening depth
+    step = paint(hexc("b3aa93"), 0.02)
+    m.box([2.5, 10.6, 1.75], [13.5, 11, 2], north=step, down=step)
+    m.box([2.5, 2.5, 1.75], [13.5, 2.9, 2], north=step, up=step)
+    m.box([13.1, 2.9, 1.75], [13.5, 10.6, 2], north=step, west=step)
+    m.box([2.5, 2.9, 1.75], [2.9, 10.6, 2], north=step, east=step)
     # tube face + housing
     m.box([1, 0.5, 2], [15, 13.3, 9], north=crt_glass, east=paint(BEIGE), west=paint(BEIGE), up=vents_top(BEIGE, 3), down=flat(BEIGE_D),
           south=paint(BEIGE_D))
@@ -456,6 +468,40 @@ def arm_stand(name, span):
     m.box([6.5, 12.5, 10.5], [9.5, 13.2, 13.5], all=metal)
     m.box([span[0], 9.5, 10.6], [span[1], 10.5, 11.6], all=metal)
     m.box([7.2, 3, 10.9], [8.8, 3.6, 11], north=flat(hexc("38c6ff")))
+    return m
+
+
+def panel_face(c):
+    c.rect(0, 0, c.w - 1, c.h - 1, hexc("0b0c0f"))
+    c.vgrad(1, 1, c.w - 2, c.h - 2, hexc("1d3b5c"), hexc("0b1424"))
+    c.hline(1, c.w - 2, 1, hexc("2e5f8f"))
+
+
+def display_item(name, kind):
+    """Inventory/hand model: the stand plus the panels the world renderer draws at runtime."""
+    m = Model(name + "_item", density=2)
+    metal = brushed(hexc("30343c"))
+    shell = flat(hexc("2a2e35"))
+    if kind == "curved":
+        m.box([5, 0, 6], [11, 0.6, 10], all=metal)
+        m.box([7.4, 0.6, 7.8], [8.6, 5, 8.8], all=metal)
+        m.box([4.5, 4.2, 7], [11.5, 10.2, 7.6], north=panel_face, south=shell, up=shell, down=shell)
+        for x0, x1, ox, ang in ((11.5, 15.5, 11.5, -22.5), (0.5, 4.5, 4.5, 22.5)):
+            m.box([x0, 4.2, 7], [x1, 10.2, 7.6], north=panel_face, south=shell, up=shell, down=shell,
+                  east=shell, west=shell, rotation={"origin": [ox, 7, 7.3], "axis": "y", "angle": ang})
+    else:
+        panels = 2 if kind == "dual" else 3
+        m.box([6, 0, 9], [10, 0.8, 13], all=metal)
+        m.box([7.4, 0.8, 10.4], [8.6, 7.5, 11.6], all=metal)
+        m.box([1, 7, 10.3], [15, 7.8, 11], all=metal)
+        if panels == 2:
+            for x0 in (0.3, 8.2):
+                m.box([x0, 5.5, 9.6], [x0 + 7.5, 10.5, 10.2], north=panel_face, south=shell, up=shell, down=shell, east=shell, west=shell)
+        else:
+            m.box([5.4, 5.5, 9.6], [10.6, 10, 10.2], north=panel_face, south=shell, up=shell, down=shell, east=shell, west=shell)
+            for x0, x1, ox, ang in ((10.8, 16, 10.8, -22.5), (0, 5.2, 5.2, 22.5)):
+                m.box([x0, 5.5, 9.6], [x1, 10, 10.2], north=panel_face, south=shell, up=shell, down=shell, east=shell, west=shell,
+                      rotation={"origin": [ox, 7.75, 9.9], "axis": "y", "angle": ang})
     return m
 
 
@@ -606,6 +652,9 @@ def tower_parts(models):
             m.box([4.7, 4.8, z0], [9.3, 5.0, z0 + span - 0.3], down=Ref("fan", (0, 0, 16, 16)), east=flat(hexc("15171b")), shade=False)
         if tier != "gt":
             m.box([9.6, 6.2, 2.4], [9.65, 6.6, 13.2], east=Ref("rgb", (0, 0, 16, 2)), shade=False)
+        # PCIe slot bracket screwed to the rear panel, and the gold fingers in the slot
+        m.box([4.4, 4.4, 13.6], [10.2, 7.4, 13.9], all=brushed(hexc("b8bec7")))
+        m.box([4.5, 4.6, 6.0], [5.0, 5.0, 11.0], down=flat(hexc("e3b95a")), east=flat(hexc("e3b95a")))
         models.append(m)
     # RAM stick (RGB top), placed per slot by translating along z
     m = Model("part/ram", density=4)
@@ -882,6 +931,7 @@ def build(assets):
         retro_pc(False), retro_pc(True), crt_monitor(), flat_monitor(), ultrawide_stand(),
         arm_stand("dual_monitor_arm", (0, 16)), arm_stand("triple_monitor_arm", (-6, 22)), video_wall(),
         tower(False), tower(True), server_rack(False), server_rack(True),
+        display_item("curved_monitor", "curved"), display_item("dual_monitor_arm", "dual"), display_item("triple_monitor_arm", "triple"),
         laptop("pro_laptop", False), laptop("rugged_laptop", True), keyboard(), mouse(), speakers(), crate(), pod(),
     ]
     tower_parts(models)

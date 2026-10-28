@@ -27,6 +27,11 @@ processResources {
     from(configurations.commonResources)
 }
 
+// the in-game smoke test (client/AutoTest) only runs from the dev environment; release jars leave it out
+tasks.named('jar', Jar) {
+    exclude 'net/hypervisorx/client/AutoTest*'
+}
+
 tasks.named('sourcesJar', Jar) {
     dependsOn(configurations.commonJava)
     from(configurations.commonJava)

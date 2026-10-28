@@ -20,12 +20,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Shared constants and the loader-independent bootstrap of VM Computers: HyperVisor X.
- * Loader entrypoints call {@link #init()} once and forward lifecycle events to the hooks below.
+ * Shared constants plus the bootstrap that doesn't care which loader we're on.
+ * Each loader's entrypoint calls {@link #init()} once, then forwards lifecycle events to the hooks below.
  */
 public final class HyperVisorX {
     public static final String MOD_ID = "hypervisorx";
-    public static final String MOD_NAME = "VM Computers: HyperVisor X";
+    public static final String MOD_NAME = "HyperVisor X";
     public static final String VERSION = "1.0.0";
     public static final Logger LOG = LoggerFactory.getLogger(MOD_NAME);
 

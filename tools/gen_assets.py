@@ -117,7 +117,7 @@ def screen_boot():
     for r in range(28, 6, -4):
         d.ellipse((cx - r, cy - r, cx + r, cy + r), outline=rgb_at(r / 40.0, 0.7, 0.9))
     d.text((cx, cy), "HVX", fill=hexc("e8eef8"), font=font(16), anchor="mm")
-    d.text((cx, 112), "VM Computers: HyperVisor X", fill=hexc("8a94a6"), font=font(11), anchor="mm")
+    d.text((cx, 112), "HyperVisor X", fill=hexc("8a94a6"), font=font(11), anchor="mm")
     return img
 
 
@@ -184,10 +184,14 @@ def models():
     for name in ("retro_pc", "gaming_tower", "server_rack"):
         facing_states(name, powered=True)
         block_item(name)
-    for name in ("monitor", "crt_monitor", "curved_monitor", "dual_monitor_arm", "triple_monitor_arm", "video_wall_panel",
+    for name in ("monitor", "crt_monitor", "video_wall_panel",
                  "pro_laptop", "rugged_laptop", "mechanical_keyboard", "gaming_mouse", "desktop_speakers"):
         facing_states(name)
         block_item(name)
+    # the world renderer draws the panels for these, but the items need them baked into the model
+    for name in ("curved_monitor", "dual_monitor_arm", "triple_monitor_arm"):
+        facing_states(name)
+        block_item(name, name + "_item")
     simple_state("delivery_crate")
     block_item("delivery_crate")
     simple_state("supply_pod")
@@ -214,13 +218,14 @@ def textures():
 # --------------------------------------------------------------------------------------------- data
 
 def loot_tables():
-    simple = ["server_rack", "monitor", "crt_monitor", "curved_monitor", "dual_monitor_arm", "triple_monitor_arm",
+    simple = ["monitor", "crt_monitor", "curved_monitor", "dual_monitor_arm", "triple_monitor_arm",
               "video_wall_panel", "mechanical_keyboard", "gaming_mouse", "desktop_speakers", "delivery_crate"]
     for b in simple:
         write_json({"type": "minecraft:block", "pools": [{"rolls": 1, "entries": [{"type": "minecraft:item", "name": f"{MOD}:{b}"}],
                                                          "conditions": [{"condition": "minecraft:survives_explosion"}]}],
                     "random_sequence": f"{MOD}:blocks/{b}"}, "loot_table", "blocks", b + ".json", base=DATA)
     for b, comps in (("retro_pc", ["installed_parts", "vm_link"]), ("gaming_tower", ["installed_parts", "vm_link"]),
+                     ("server_rack", ["installed_parts"]),
                      ("pro_laptop", ["vm_link", "remote_target"]), ("rugged_laptop", ["vm_link", "remote_target"])):
         write_json({"type": "minecraft:block", "pools": [{"rolls": 1, "entries": [{
             "type": "minecraft:item", "name": f"{MOD}:{b}",
@@ -229,28 +234,74 @@ def loot_tables():
                     "random_sequence": f"{MOD}:blocks/{b}"}, "loot_table", "blocks", b + ".json", base=DATA)
 
 
+def shaped(name, pattern, key, result=None, count=1):
+    k = {c: ({"item": v} if ":" in v and not v.startswith("#") else {"tag": v[1:]} if v.startswith("#") else {"item": f"{MOD}:{v}"})
+         for c, v in key.items()}
+    write_json({"type": "minecraft:crafting_shaped", "category": "misc", "pattern": pattern, "key": k,
+                "result": {"id": f"{MOD}:{result or name}", "count": count}}, "recipe", name + ".json", base=DATA)
+
+
+def shapeless(name, items, result=None, count=1):
+    ing = [({"item": v} if ":" in v else {"item": f"{MOD}:{v}"}) for v in items]
+    write_json({"type": "minecraft:crafting_shapeless", "category": "misc", "ingredients": ing,
+                "result": {"id": f"{MOD}:{result or name}", "count": count}}, "recipe", name + ".json", base=DATA)
+
+
 def recipes():
-    write_json({"type": "minecraft:crafting_shaped", "category": "misc",
-                "pattern": ["IGI", "IRI", "ICI"],
-                "key": {"I": {"item": "minecraft:iron_ingot"}, "G": {"item": "minecraft:glass_pane"},
-                        "R": {"item": "minecraft:redstone"}, "C": {"item": "minecraft:copper_ingot"}},
-                "result": {"id": f"{MOD}:orbittech_tablet", "count": 1}}, "recipe", "orbittech_tablet.json", base=DATA)
-    write_json({"type": "minecraft:crafting_shapeless", "category": "misc",
-                "ingredients": [{"item": "minecraft:copper_ingot"}, {"item": "minecraft:string"}, {"item": "minecraft:redstone"}],
-                "result": {"id": f"{MOD}:hdmi_cable", "count": 2}}, "recipe", "hdmi_cable.json", base=DATA)
-    write_json({"type": "minecraft:crafting_shaped", "category": "misc",
-                "pattern": ["BBB", "SRS"],
-                "key": {"B": {"item": "minecraft:stone_button"}, "S": {"item": "minecraft:smooth_stone_slab"},
-                        "R": {"item": "minecraft:redstone"}},
-                "result": {"id": f"{MOD}:mechanical_keyboard", "count": 1}}, "recipe", "mechanical_keyboard.json", base=DATA)
-    write_json({"type": "minecraft:crafting_shaped", "category": "misc",
-                "pattern": ["B", "S"],
-                "key": {"B": {"item": "minecraft:stone_button"}, "S": {"item": "minecraft:smooth_stone_slab"}},
-                "result": {"id": f"{MOD}:gaming_mouse", "count": 1}}, "recipe", "gaming_mouse.json", base=DATA)
-    write_json({"type": "minecraft:crafting_shaped", "category": "misc",
-                "pattern": ["N N", "IRI"],
-                "key": {"N": {"item": "minecraft:note_block"}, "I": {"item": "minecraft:iron_ingot"}, "R": {"item": "minecraft:redstone"}},
-                "result": {"id": f"{MOD}:desktop_speakers", "count": 1}}, "recipe", "desktop_speakers.json", base=DATA)
+    """Survival progression: every computer, display and part is craftable from vanilla stuff,
+    and each tier upgrades the one before it, so the OrbitTech store is a shortcut, not a gate."""
+    I, G, C, R, Q, D = "minecraft:iron_ingot", "minecraft:gold_ingot", "minecraft:copper_ingot", "minecraft:redstone", "minecraft:quartz", "minecraft:diamond"
+    GP, GL, NS = "minecraft:glass_pane", "minecraft:glass", "minecraft:netherite_scrap"
+    # tools & cables
+    shaped("orbittech_tablet", ["IGI", "IRI", "ICI"], {"I": I, "G": GP, "R": R, "C": C})
+    shapeless("hdmi_cable", [C, "minecraft:string", R], count=2)
+    # CPUs
+    shaped("cpu_orbitcore_d2", ["CRC", "RQR", "CRC"], {"C": C, "R": R, "Q": Q})
+    shaped("cpu_orbitcore_q4", ["GRG", "RPR", "GRG"], {"G": G, "R": R, "P": "cpu_orbitcore_d2"})
+    shaped("cpu_orbitcore_x8", ["DRD", "QPQ", "DRD"], {"D": D, "R": R, "Q": Q, "P": "cpu_orbitcore_q4"})
+    shaped("cpu_orbitripper_16", ["NDN", "DPD", "NDN"], {"N": NS, "D": D, "P": "cpu_orbitcore_x8"})
+    # memory: two sticks + a metal make the next size
+    shaped("ram_1gb", ["RRR", "CCC", "GGG"], {"R": R, "C": C, "G": "minecraft:gold_nugget"})
+    shapeless("ram_2gb", ["ram_1gb", "ram_1gb", "minecraft:iron_ingot"])
+    shapeless("ram_4gb", ["ram_2gb", "ram_2gb", "minecraft:gold_ingot"])
+    shapeless("ram_8gb", ["ram_4gb", "ram_4gb", "minecraft:redstone_block"])
+    shapeless("ram_16gb", ["ram_8gb", "ram_8gb", "minecraft:diamond"])
+    shapeless("ram_32gb", ["ram_16gb", "ram_16gb", "minecraft:netherite_scrap"])
+    # graphics
+    shaped("gpu_integrated", ["CQC", "RRR"], {"C": C, "Q": Q, "R": R})
+    shaped("gpu_orbitforce_gt", ["III", "GPG", "CRC"], {"I": I, "G": GP, "P": "gpu_integrated", "C": C, "R": R})
+    shaped("gpu_orbitforce_gx", ["GDG", "RPR", "GDG"], {"G": G, "D": D, "R": R, "P": "gpu_orbitforce_gt"})
+    shaped("gpu_orbitforce_titan", ["NAN", "DPD", "NAN"], {"N": NS, "A": "minecraft:amethyst_shard", "D": D, "P": "gpu_orbitforce_gx"})
+    # storage
+    shaped("hdd_500gb", ["III", "IJI", "IRI"], {"I": I, "J": "minecraft:music_disc_13", "R": R})
+    shaped("ssd_1tb", ["III", "QRQ", "III"], {"I": I, "Q": Q, "R": R})
+    shapeless("nvme_2tb", ["ssd_1tb", "minecraft:gold_ingot", "minecraft:redstone_block"])
+    shapeless("enterprise_hdd_8tb", ["hdd_500gb", "hdd_500gb", "minecraft:iron_block", "minecraft:diamond"])
+    shaped("usb_flash_drive", ["N", "R", "C"], {"N": "minecraft:iron_nugget", "R": R, "C": C})
+    # add-in cards and blades
+    shaped("redstone_gpio_card", ["RTR", "CPC", "GGG"], {"R": R, "T": "minecraft:repeater", "C": "minecraft:comparator", "P": C,
+                                                        "G": "minecraft:gold_nugget"})
+    shaped("wifi_card", ["L L", "CQC", "GGG"], {"L": "minecraft:lightning_rod", "C": C, "Q": Q, "G": "minecraft:gold_nugget"})
+    shaped("server_blade_x8", ["III", "PRP", "III"], {"I": I, "P": "cpu_orbitcore_x8", "R": "ram_8gb"})
+    shaped("server_blade_x16", ["DID", "PBP", "DID"], {"D": D, "I": "minecraft:iron_block", "P": "cpu_orbitripper_16", "B": "server_blade_x8"})
+    # computers
+    shaped("retro_pc", ["TTT", "TRT", "TCT"], {"T": "minecraft:white_terracotta", "R": R, "C": "minecraft:chest"})
+    shaped("gaming_tower", ["GIG", "GPG", "IAI"], {"G": GL, "I": I, "P": "retro_pc", "A": "minecraft:amethyst_shard"})
+    shaped("server_rack", ["IBI", "IHI", "IBI"], {"I": I, "B": "minecraft:iron_bars", "H": "minecraft:hopper"})
+    # displays
+    shaped("monitor", ["III", "IGI", " R "], {"I": I, "G": GP, "R": R})
+    shaped("crt_monitor", ["TTT", "TGT", "TRT"], {"T": "minecraft:white_terracotta", "G": GL, "R": R})
+    shaped("curved_monitor", ["MMM", " I "], {"M": "monitor", "I": "minecraft:iron_block"})
+    shaped("dual_monitor_arm", ["M M", " I "], {"M": "monitor", "I": I})
+    shaped("triple_monitor_arm", ["MMM", " I "], {"M": "monitor", "I": I})
+    shaped("video_wall_panel", ["GGG", "GRG", "III"], {"G": GP, "R": R, "I": I}, count=4)
+    # laptops
+    shaped("pro_laptop", ["IMI", "IKI", "IPI"], {"I": I, "M": "monitor", "K": "mechanical_keyboard", "P": "cpu_orbitcore_q4"})
+    shaped("rugged_laptop", ["LBL", "BPB", "LBL"], {"L": "minecraft:leather", "B": "minecraft:iron_block", "P": "pro_laptop"})
+    # peripherals
+    shaped("mechanical_keyboard", ["BBB", "SRS"], {"B": "minecraft:stone_button", "S": "minecraft:smooth_stone_slab", "R": R})
+    shaped("gaming_mouse", ["B", "S"], {"B": "minecraft:stone_button", "S": "minecraft:smooth_stone_slab"})
+    shaped("desktop_speakers", ["N N", "IRI"], {"N": "minecraft:note_block", "I": I, "R": R})
 
 
 def tags():

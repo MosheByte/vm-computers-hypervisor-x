@@ -110,7 +110,7 @@ public class ComputerCaseBlock extends HorizontalEntityBlock {
             VmManager m = VmManager.get();
             if (m != null) {
                 for (int i = 0; i < be.vmSlots(); i++) {
-                    if (be.vmId(i) != null) m.stop(be.vmId(i), VmManager.StopMode.FORCE);
+                    if (be.vmId(i) != null) m.stopGracefully(be.vmId(i));
                 }
             }
         }

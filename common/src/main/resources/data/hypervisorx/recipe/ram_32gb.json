@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "hypervisorx:ram_16gb"
+    },
+    {
+      "item": "hypervisorx:ram_16gb"
+    },
+    {
+      "item": "minecraft:netherite_scrap"
+    }
+  ],
+  "result": {
+    "id": "hypervisorx:ram_32gb",
+    "count": 1
+  }
+}

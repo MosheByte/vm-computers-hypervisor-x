@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "hypervisorx:ram_4gb"
+    },
+    {
+      "item": "hypervisorx:ram_4gb"
+    },
+    {
+      "item": "minecraft:redstone_block"
+    }
+  ],
+  "result": {
+    "id": "hypervisorx:ram_8gb",
+    "count": 1
+  }
+}

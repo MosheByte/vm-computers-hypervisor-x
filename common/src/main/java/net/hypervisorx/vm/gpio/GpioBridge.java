@@ -42,6 +42,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * Sides: down up north south west east, or front back left right (relative to facing), top bottom.
  */
 public final class GpioBridge {
+    private long lastBeep = Long.MIN_VALUE;
     private static final String[] SIDE_NAMES = {"down", "up", "north", "south", "west", "east"};
 
     private final VmSession session;
@@ -209,7 +210,12 @@ public final class GpioBridge {
                     reply("ERR inventory missing");
                     return;
                 }
-                reply("OK moved " + move(src, dst, count));
+                if (locked(host, from) || locked(host, to)) {
+                    reply("ERR inventory is locked");
+                    return;
+                }
+                // getOpposite() = the neighbour's face that points back at the computer
+                reply("OK moved " + move(src, from.getOpposite(), dst, to.getOpposite(), count));
             }
             case "TIME" -> {
                 ServerLevel lvl = (ServerLevel) host.hostLevel();
@@ -220,6 +226,11 @@ public final class GpioBridge {
                 reply("WEATHER " + (lvl.isThundering() ? "thunder" : lvl.isRaining() ? "rain" : "clear"));
             }
             case "BEEP" -> {
+                if (host.hostLevel().getGameTime() - lastBeep < 2) {
+                    reply("OK");
+                    return;
+                }
+                lastBeep = host.hostLevel().getGameTime();
                 int note = a.length > 1 ? Math.max(0, Math.min(24, Integer.parseInt(a[1]))) : 12;
                 float pitch = (float) Math.pow(2.0, (note - 12) / 12.0);
                 host.hostLevel().playSound(null, host.hostPos(), SoundEvents.NOTE_BLOCK_BIT.value(), SoundSource.BLOCKS, 1f, pitch);
@@ -246,13 +257,39 @@ public final class GpioBridge {
         return be instanceof Container c ? c : null;
     }
 
-    private static int move(Container src, Container dst, int count) {
+    /** Hands off anything with a vanilla lock ("lock"/"Lock" key on the block entity). */
+    private static boolean locked(VmHost host, Direction d) {
+        BlockEntity be = host.hostLevel().getBlockEntity(host.hostPos().relative(d));
+        if (!(be instanceof net.minecraft.world.level.block.entity.BaseContainerBlockEntity)) return false;
+        net.minecraft.nbt.CompoundTag tag = be.saveWithoutMetadata(host.hostLevel().registryAccess());
+        return tag.contains("lock") || tag.contains("Lock");
+    }
+
+    private static int[] slots(Container c, Direction face) {
+        if (c instanceof net.minecraft.world.WorldlyContainer w) return w.getSlotsForFace(face);
+        int[] all = new int[c.getContainerSize()];
+        for (int i = 0; i < all.length; i++) all[i] = i;
+        return all;
+    }
+
+    /**
+     * Hopper-style move. Sided inventories (furnaces, brewing stands...) keep their per-face slot rules,
+     * and stuff that can't nest (shulker boxes) never goes into a shulker box.
+     */
+    private static int move(Container src, Direction srcFace, Container dst, Direction dstFace, int count) {
         int moved = 0;
-        for (int i = 0; i < src.getContainerSize() && moved < count; i++) {
+        boolean dstIsShulker = dst instanceof net.minecraft.world.level.block.entity.ShulkerBoxBlockEntity;
+        int[] dstSlots = slots(dst, dstFace);
+        for (int i : slots(src, srcFace)) {
+            if (moved >= count) break;
             ItemStack s = src.getItem(i);
             if (s.isEmpty()) continue;
-            for (int j = 0; j < dst.getContainerSize() && moved < count && !s.isEmpty(); j++) {
+            if (src instanceof net.minecraft.world.WorldlyContainer w && !w.canTakeItemThroughFace(i, s, srcFace)) continue;
+            if (dstIsShulker && !s.getItem().canFitInsideContainerItems()) continue;
+            for (int j : dstSlots) {
+                if (moved >= count || s.isEmpty()) break;
                 if (!dst.canPlaceItem(j, s)) continue;
+                if (dst instanceof net.minecraft.world.WorldlyContainer w && !w.canPlaceItemThroughFace(j, s, dstFace)) continue;
                 ItemStack d = dst.getItem(j);
                 int limit = Math.min(dst.getMaxStackSize(), s.getMaxStackSize());
                 if (d.isEmpty()) {

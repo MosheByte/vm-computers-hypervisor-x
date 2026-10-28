@@ -672,6 +672,12 @@ def ic_play_tri(c):
         c.vline(2 + x, 5 - h, 6 + h, ICON)
 
 
+def ic_coin(c):
+    c.disc(5.5, 5.5, 5.3, ICON)
+    c.ring(5.5, 5.5, 3.2, 4.2, (0, 0, 0, 0))
+    c.rect(5, 3, 6, 8, (0, 0, 0, 0))
+
+
 ICONS = [
     ("power", ic_power), ("stop", ic_stop), ("play", ic_play_tri), ("reset", ic_reset), ("camera", ic_camera),
     ("disc", ic_disc), ("usb", ic_usb), ("library", ic_library), ("focus", ic_focus), ("gear", ic_gear),
@@ -680,7 +686,7 @@ ICONS = [
     ("warn", ic_warn), ("monitor", ic_monitor), ("back", ic_back), ("trash", ic_trash), ("chip", ic_chip),
     ("memory", ic_memory), ("drive", ic_drive), ("wifi", ic_wifi), ("plus", ic_plus), ("minus", ic_minus),
     ("box", ic_box), ("rocket", ic_rocket), ("info", ic_info), ("close", ic_close), ("keyboard", ic_keyboard),
-    ("server", ic_server),
+    ("server", ic_server), ("coin", ic_coin),
 ]
 
 
