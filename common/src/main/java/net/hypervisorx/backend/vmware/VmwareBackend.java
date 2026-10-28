@@ -149,7 +149,9 @@ public final class VmwareBackend implements HypervisorBackend {
 
             Processes.Result start = Processes.run(240, inst.vmrun().toString(), "-T", inst.hostType(), "start", vmxPath.toString(), "nogui");
             if (!start.ok()) {
-                throw new BackendException("vmrun start failed: " + start.output());
+                // vmrun only says "The operation was canceled"; the real reason is the last error in vmware.log
+                String why = lastVmwareError(vmxPath.getParent().resolve("vmware.log"));
+                throw new BackendException("vmrun start failed: " + (why != null ? why : start.output().strip()));
             }
             VmwareInstance instance = new VmwareInstance(spec, inst, vmxPath, vncPort, password, spec.gpio() ? pipe : null);
             instance.connect();
@@ -216,7 +218,7 @@ public final class VmwareBackend implements HypervisorBackend {
         if (vmx.get("virtualHW.version") == null) vmx.set("virtualHW.version", legacy ? "14" : "19");
         vmx.set("displayName", spec.name() + " (HyperVisor X)");
         vmx.set("guestOS", spec.guestOs().vmwareType());
-        vmx.set("memsize", Math.max(64, spec.ramMb()));
+        vmx.set("memsize", Math.max(64, spec.ramMb() / 4 * 4)); // VMware won't take sizes that aren't a multiple of 4 MB
         vmx.set("numvcpus", Math.max(1, spec.cores()));
         vmx.set("cpuid.coresPerSocket", Math.max(1, spec.cores()));
         vmx.set("firmware", spec.efi() && !legacy ? "efi" : "bios");
@@ -311,5 +313,23 @@ public final class VmwareBackend implements HypervisorBackend {
                 throw new BackendException("vmrun deleteVM failed: " + e.getMessage(), e);
             }
         }
+    }
+
+    /** First "[msg.*] text" line after the last "Msg_Post: Error" in a VMware log, or null. */
+    static String lastVmwareError(Path log) {
+        try {
+            if (!Files.isRegularFile(log)) return null;
+            List<String> lines = Files.readAllLines(log, java.nio.charset.StandardCharsets.ISO_8859_1);
+            for (int i = lines.size() - 1; i >= 0; i--) {
+                if (!lines.get(i).contains("Msg_Post: Error")) continue;
+                for (int j = i + 1; j < Math.min(lines.size(), i + 6); j++) {
+                    String l = lines.get(j);
+                    int k = l.indexOf("[msg.");
+                    if (k >= 0 && l.indexOf(']', k) > 0) return l.substring(l.indexOf(']', k) + 1).strip();
+                }
+            }
+        } catch (java.io.IOException | RuntimeException ignored) {
+        }
+        return null;
     }
 }

@@ -303,6 +303,8 @@ public final class VmManager {
             ram = cfg.embeddedRamMb;
         } else {
             ram = HostLimits.clampRam(rack ? r.allocRamMb : hw.ramMb(), cfg.maxRamMbPerVm, cfg.maxHostRamPercent, used);
+            // leftover host budget can be any number but hypervisors want whole blocks (VMware: multiple of 4 MB)
+            ram = ram / 64 * 64;
             if (ram < 256) {
                 long allowed = HostLimits.totalRamMb() * cfg.maxHostRamPercent / 100;
                 return Component.translatable("hypervisorx.msg.host_ram", used, allowed, cfg.maxHostRamPercent, HostLimits.totalRamMb());
