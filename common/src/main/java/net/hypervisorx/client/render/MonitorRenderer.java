@@ -21,7 +21,10 @@ import java.util.UUID;
  */
 public class MonitorRenderer implements BlockEntityRenderer<MonitorBlockEntity>, BoundedRenderer<MonitorBlockEntity> {
     private static final float PX = 1f / 16f;
-    private static final int SHELL_COLOR = 0xFF1A1D24;
+    private static final int SHELL_COLOR = 0xFF2A2E35;
+    private static final int BEZEL_COLOR = 0xFF0C0D10;
+    private static final int ACCENT_COLOR = 0xFF38C6FF;
+    private static final int FULL_BRIGHT = 0xF000F0;
 
     public MonitorRenderer(BlockEntityRendererProvider.Context ctx) {
     }
@@ -74,9 +77,12 @@ public class MonitorRenderer implements BlockEntityRenderer<MonitorBlockEntity>,
             pose.translate(cx, 0, cz);
             pose.mulPose(Axis.YP.rotationDegrees((float) -Math.toDegrees(am)));
             // back plate sits well behind the panel plane, thin bezels above/below, so nothing pokes out in front of the next segment
-            ScreenDraw.box(pose, buffers, -segW / 2, y0 - 0.05f, 0.03f, segW / 2, y0 + height + 0.05f, 0.08f, light, SHELL_COLOR);
-            ScreenDraw.box(pose, buffers, -segW / 2, y0 - 0.05f, -0.004f, segW / 2, y0, 0.03f, light, SHELL_COLOR);
-            ScreenDraw.box(pose, buffers, -segW / 2, y0 + height, -0.004f, segW / 2, y0 + height + 0.05f, 0.03f, light, SHELL_COLOR);
+            ScreenDraw.box(pose, buffers, -segW / 2, y0 - 0.04f, 0.03f, segW / 2, y0 + height + 0.03f, 0.09f, light, SHELL_COLOR);
+            ScreenDraw.box(pose, buffers, -segW / 2, y0 - 0.05f, -0.004f, segW / 2, y0, 0.03f, light, BEZEL_COLOR);
+            ScreenDraw.box(pose, buffers, -segW / 2, y0 + height, -0.004f, segW / 2, y0 + height + 0.02f, 0.03f, light, BEZEL_COLOR);
+            // rear light bar (like the ring lights on gaming ultrawides)
+            float ly = y0 + height * 0.62f;
+            ScreenDraw.box(pose, buffers, -segW / 2, ly, 0.09f, segW / 2, ly + 0.025f, 0.096f, FULL_BRIGHT, ACCENT_COLOR);
             float s0 = (float) i / segments;
             float s1 = (float) (i + 1) / segments;
             float c0 = Math.max(0f, (s0 - margin) / fill);
@@ -94,14 +100,18 @@ public class MonitorRenderer implements BlockEntityRenderer<MonitorBlockEntity>,
                     ScreenDraw.quad(buffers.getBuffer(HvxRenderTypes.screen(ScreenDraw.WHITE)), pose.last().pose(), segW / 2, y0, -segW / 2, y0 + height,
                             0.0005f, 0f, 0f, 1f, 1f, 0xFF000000);
                 }
-                ScreenDraw.screen(pose, buffers, vm, be.getBlockPos(), xa, y0, xb, y0 + height, 0f, part0 + partW * c0, part0 + partW * c1, false);
+                ScreenDraw.screen(pose, buffers, vm, be.getBlockPos(), xa + (a <= 0.001f ? 0.0015f : 0f), y0, xb - (b >= 0.999f ? 0.0015f : 0f), y0 + height,
+                        0f, part0 + partW * c0, part0 + partW * c1, false);
             } else {
-                ScreenDraw.screen(pose, buffers, vm, be.getBlockPos(), segW / 2, y0, -segW / 2, y0 + height, 0f, part0 + partW * s0, part0 + partW * s1, false);
+                // overlap segments by a hair so you can't see the shell through cracks between quads
+                float ov = 0.0015f;
+                ScreenDraw.screen(pose, buffers, vm, be.getBlockPos(), segW / 2 + ov, y0, -segW / 2 - ov, y0 + height, 0f,
+                        part0 + partW * s0, part0 + partW * s1, false);
             }
             pose.popPose();
         }
-        // stand neck
-        ScreenDraw.box(pose, buffers, 7f * PX, 1f * PX, 8.5f * PX, 9f * PX, y0 + 0.3f, 10f * PX, light, SHELL_COLOR);
+        // stand neck goes up to the hinge behind the panel
+        ScreenDraw.box(pose, buffers, 7.2f * PX, 9f * PX, 8.6f * PX, 8.8f * PX, y0 + 0.36f, 9.8f * PX, light, 0xFF383D46);
     }
 
     /** Two or three panels on a desk arm. On the triple, the outer two angle in toward you. */
@@ -126,7 +136,12 @@ public class MonitorRenderer implements BlockEntityRenderer<MonitorBlockEntity>,
             pose.pushPose();
             pose.translate(cx, 0, cz);
             pose.mulPose(Axis.YP.rotationDegrees(angle));
-            ScreenDraw.box(pose, buffers, -w / 2 - 0.02f, y0 - 0.03f, 0.004f, w / 2 + 0.02f, y0 + h + 0.03f, 0.05f, light, SHELL_COLOR);
+            ScreenDraw.box(pose, buffers, -w / 2 - 0.012f, y0 - 0.03f, -0.004f, w / 2 + 0.012f, y0, 0.03f, light, BEZEL_COLOR);
+            ScreenDraw.box(pose, buffers, -w / 2 - 0.012f, y0 + h, -0.004f, w / 2 + 0.012f, y0 + h + 0.012f, 0.03f, light, BEZEL_COLOR);
+            ScreenDraw.box(pose, buffers, -w / 2 - 0.012f, y0, -0.004f, -w / 2, y0 + h, 0.03f, light, BEZEL_COLOR);
+            ScreenDraw.box(pose, buffers, w / 2, y0, -0.004f, w / 2 + 0.012f, y0 + h, 0.03f, light, BEZEL_COLOR);
+            ScreenDraw.box(pose, buffers, -w / 2 - 0.012f, y0 - 0.03f, 0.03f, w / 2 + 0.012f, y0 + h + 0.012f, 0.06f, light, SHELL_COLOR);
+            ScreenDraw.box(pose, buffers, -0.09f, y0 + h / 2 - 0.09f, 0.06f, 0.09f, y0 + h / 2 + 0.09f, 0.1f, light, 0xFF1B1D22);
             // a spanned (extra-wide) desktop gets sliced across the panels, a normal one is mirrored on each
             ScreenTexture live = ScreenDraw.liveTexture(vm, be.getBlockPos());
             boolean slice = live != null && live.width() * partW / (float) live.height() >= (w / h) * (panels - 0.5f);

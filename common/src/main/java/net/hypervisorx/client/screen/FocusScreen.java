@@ -50,22 +50,28 @@ public class FocusScreen extends Screen {
     @Override
     protected void init() {
         bar.clear();
-        int y = 3;
-        int x = width - 4;
-        x = addBar(x, y, 64, Component.translatable("hypervisorx.focus.release", HvxKeys.RELEASE.getTranslatedKeyMessage()), this::onClose, UiKit.ACCENT);
-        x = addBar(x, y, 52, Component.translatable("hypervisorx.focus.snapshot"), () -> action(C2S.HostAction.SNAPSHOT), UiKit.ACCENT_2);
-        x = addBar(x, y, 74, Component.literal("Ctrl+Alt+Del"), () -> action(C2S.HostAction.CTRL_ALT_DEL), UiKit.ACCENT);
-        x = addBar(x, y, 40, Component.translatable("hypervisorx.focus.reset"), () -> action(C2S.HostAction.RESET), UiKit.WARN);
-        x = addBar(x, y, 48, Component.translatable("hypervisorx.focus.force_off"), () -> action(C2S.HostAction.FORCE_OFF), UiKit.ERROR);
-        UiKit.FlatButton power = new UiKit.FlatButton(x - 56, y, 56, 16, Component.empty(), () -> action(running()
-                ? C2S.HostAction.SHUTDOWN : C2S.HostAction.POWER_ON));
-        power.label(() -> Component.translatable(running() ? "hypervisorx.focus.shutdown" : "hypervisorx.focus.power_on")).accent(UiKit.OK);
+        int y = 4;
+        int x = width - 5;
+        Component release = Component.translatable("hypervisorx.focus.release", HvxKeys.RELEASE.getTranslatedKeyMessage());
+        int rw = Math.min(110, font.width(release) + 26);
+        UiKit.FlatButton rel = new UiKit.FlatButton(x - rw, y, rw, 16, release, this::onClose).icon(UiKit.Icon.BACK).style(UiKit.Style.PRIMARY);
+        bar.add(addRenderableWidget(rel));
+        x -= rw + 6;
+        x = addBar(x, y, UiKit.Icon.CAMERA, Component.translatable("hypervisorx.focus.snapshot"), () -> action(C2S.HostAction.SNAPSHOT), UiKit.ACCENT);
+        x = addBar(x, y, UiKit.Icon.KEYBOARD, Component.literal("Ctrl+Alt+Del"), () -> action(C2S.HostAction.CTRL_ALT_DEL), UiKit.ACCENT_2);
+        x = addBar(x, y, UiKit.Icon.RESET, Component.translatable("hypervisorx.focus.reset"), () -> action(C2S.HostAction.RESET), UiKit.WARN);
+        x = addBar(x, y, UiKit.Icon.STOP, Component.translatable("hypervisorx.focus.force_off"), () -> action(C2S.HostAction.FORCE_OFF), UiKit.ERROR);
+        UiKit.FlatButton power = new UiKit.FlatButton(x - 22, y, 22, 16, Component.empty(), () -> action(running()
+                ? C2S.HostAction.SHUTDOWN : C2S.HostAction.POWER_ON)).icon(UiKit.Icon.POWER).accent(UiKit.OK);
+        power.tip(() -> Component.translatable(running() ? "hypervisorx.focus.shutdown" : "hypervisorx.focus.power_on"));
         bar.add(addRenderableWidget(power));
     }
 
-    private int addBar(int right, int y, int w, Component label, Runnable action, int accent) {
-        bar.add(addRenderableWidget(new UiKit.FlatButton(right - w, y, w, 16, label, action).accent(accent)));
-        return right - w - 3;
+    private int addBar(int right, int y, UiKit.Icon icon, Component tip, Runnable action, int accent) {
+        UiKit.FlatButton b = new UiKit.FlatButton(right - 22, y, 22, 16, Component.empty(), action).icon(icon).accent(accent).tip(tip);
+        if (accent == UiKit.ERROR) b.style(UiKit.Style.DANGER);
+        bar.add(addRenderableWidget(b));
+        return right - 25;
     }
 
     private void action(int action) {
@@ -78,7 +84,7 @@ public class FocusScreen extends Screen {
     }
 
     private boolean overlayVisible() {
-        return System.currentTimeMillis() - openedAt < 3500 || mouseY < 24 || !running();
+        return System.currentTimeMillis() - openedAt < 3500 || mouseY < 26 || !running();
     }
 
     @Override
@@ -140,16 +146,17 @@ public class FocusScreen extends Screen {
                     width / 2, y + 48, UiKit.MUTED);
         }
         if (overlayVisible()) {
-            g.fill(0, 0, width, 23, 0xF2101319);
-            g.fill(0, 22, width, 23, UiKit.ACCENT);
+            g.fillGradient(0, 0, width, 24, 0xF2171B22, 0xF2101318);
+            UiKit.accentLine(g, 0, 24, width);
             String name = status == null ? "" : status.name();
             String info = status == null ? "" : String.format("%s  %dx%d  %.0f fps  [%s]", status.state(), status.width(), status.height(),
                     status.fps(), status.backend());
             int textWidth = Math.max(40, bar.stream().mapToInt(b -> b.getX()).min().orElse(width) - 14);
             name = UiKit.ellipsize(font, name, textWidth);
             info = UiKit.ellipsize(font, info, textWidth);
-            g.drawString(font, name, 6, 3, UiKit.TEXT, false);
-            g.drawString(font, info, 6, 13, UiKit.MUTED, false);
+            UiKit.icon(g, laptop ? UiKit.Icon.FOCUS : UiKit.Icon.MONITOR, 6, 6, UiKit.ACCENT_2);
+            g.drawString(font, UiKit.clip(font, name, textWidth - 18), 22, 4, UiKit.TEXT, false);
+            UiKit.textFit(g, font, info, 22, 14, textWidth - 18, UiKit.MUTED, 0.75f);
             if (laptop && status != null && status.batteryPercent() >= 0) {
                 int bx = 6 + Math.max(font.width(name), font.width(info)) + 10;
                 int pct = status.batteryPercent();
@@ -209,7 +216,7 @@ public class FocusScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
-        if (overlayVisible() && my < 23) return super.mouseClicked(mx, my, button);
+        if (overlayVisible() && my < 25) return super.mouseClicked(mx, my, button);
         if (!insideVm(mx, my)) return super.mouseClicked(mx, my, button);
         buttons |= rfbBit(button);
         sendPointer(mx, my, true);

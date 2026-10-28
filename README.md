@@ -120,7 +120,7 @@ Sneak-use the tablet or click *Library* in a computer:
 ## Install in 60 seconds
 
 1. Install **Minecraft 1.21.1** with **NeoForge 21.1.x** or **Fabric Loader ≥ 0.16 + Fabric API**.
-2. Download `hypervisorx-neoforge-1.21.1-1.0.0.jar` *or* `hypervisorx-fabric-1.21.1-1.0.0.jar`
+2. Download `hypervisorx-neoforge-1.21.1-1.1.0.jar` *or* `hypervisorx-fabric-1.21.1-1.1.0.jar`
    from [Releases](https://github.com/MosheBarami/vm-computers-hypervisor-x/releases) and put it in `.minecraft/mods`.
 3. Start a world, open the creative tab **VM Computers: HyperVisor X** (or craft the OrbitTech tablet),
    or simply run **`/hvx demo`** to get a complete working showroom.
@@ -130,9 +130,12 @@ Sneak-use the tablet or click *Library* in a computer:
 fallback). Power on: Linux boots in about a second and logs you in. Type `doom` in the *Target*
 field for the DOOM image.
 
-**VMware** — install VMware Workstation Pro (free for personal use) or Fusion. Nothing else to
-configure: HyperVisor X writes the `.vmx`, creates the disk with `vmware-vdiskmanager`, enables
-VNC on localhost with a random password and starts the VM headless with `vmrun`.
+**VMware** — install VMware Workstation Pro (free since 2024; download it from the Broadcom support
+portal under *Free Downloads → VMware Workstation Pro*) or Fusion. Nothing else to configure:
+HyperVisor X writes the `.vmx`, creates the disk with `vmware-vdiskmanager`, enables VNC on
+localhost with a random password and starts the VM headless with `vmrun`. Tested end to end with
+**Workstation Pro 26H1u1** on Windows 11 with Hyper-V enabled: Tiny Core Linux boots to its desktop
+on a curved ultrawide in-game (screenshot below).
 
 **VirtualBox** — install VirtualBox 7. HyperVisor X creates the VM with `VBoxManage`, starts
 `vboxwebsrv` on `127.0.0.1:18083` by itself and, if logons fail, switches its auth library to
@@ -232,14 +235,14 @@ neoforge/, fabric/            ~5 small classes each: registration, networking, e
 tools/                        asset, language and font generators
 ```
 
-## Known limitations (1.0.0)
+## Known limitations (1.1.0)
 - Minecraft **1.21.1** only; ports to the 26.x line are planned.
 - The embedded MicroVM is a RISC-V Linux text console, not an x86 PC; Windows needs VMware,
   VirtualBox or QEMU.
 - Guest audio is streamed into the world for **QEMU**; VMware and VirtualBox play guest audio on
   the host's speakers.
 - No virtual webcam and no Simple Voice Chat bridge yet.
-- VMware's VNC server must be supported by your VMware version (Workstation 17 documents it).
+- VMware's VNC server must be supported by your VMware version (verified with Workstation Pro 26H1u1).
 
 ## Credits
 - **Louis Grünenwald (Delta2Force)** — original VM Computers, the idea and the satellite store.
@@ -251,5 +254,7 @@ tools/                        asset, language and font generators
 ## Screenshots
 | | |
 |---|---|
-| ![close-up](docs/screenshots/hvx-closeup.png) | ![focus mode](docs/screenshots/hvx-focus.png) |
-| ![OrbitTech store](docs/screenshots/hvx-store.png) | ![computer screen](docs/screenshots/hvx-computer.png) |
+| ![Tiny Core Linux running on VMware Workstation, shown on the curved ultrawide](docs/screenshots/hvx-vmware-world.png) | ![VMware guest in focus mode](docs/screenshots/hvx-vmware-focus.png) |
+| ![PC assembly and VM settings](docs/screenshots/hvx-computer.png) | ![OS library and hypervisor health](docs/screenshots/hvx-library.png) |
+| ![OrbitTech store](docs/screenshots/hvx-store.png) | ![desk with retro PC, speakers, RGB keyboard and the glass tower](docs/screenshots/hvx-desk.png) |
+| ![embedded Linux in focus mode](docs/screenshots/hvx-focus.png) | ![tempered-glass tower interior](docs/screenshots/hvx-tower.png) |

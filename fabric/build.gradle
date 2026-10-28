@@ -29,6 +29,8 @@ loom {
             runDir('runs/client')
             // ./gradlew :fabric:runClient -Phvx.autotest=true runs the automated in-game smoke test
             property('hvx.autotest', (project.findProperty('hvx.autotest') ?: 'false').toString())
+            property('hvx.demoworld', (project.findProperty('hvx.demoworld') ?: 'false').toString())
+            property('hvx.vmwaretest', (project.findProperty('hvx.vmwaretest') ?: 'false').toString())
         }
         server {
             server()

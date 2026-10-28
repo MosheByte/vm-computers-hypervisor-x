@@ -1,0 +1,50 @@
+{
+ "parent": "block/block",
+ "textures": {
+  "atlas": "hypervisorx:block/model/part/drive",
+  "particle": "hypervisorx:block/model/part/drive"
+ },
+ "elements": [
+  {
+   "from": [
+    6.5,
+    4.0,
+    10.0
+   ],
+   "to": [
+    10.5,
+    4.4,
+    13.8
+   ],
+   "faces": {
+    "north": {
+     "texture": "#atlas",
+     "uv": [
+      8.0,
+      0.0,
+      16.0,
+      1.0
+     ]
+    },
+    "east": {
+     "texture": "#atlas",
+     "uv": [
+      0.0,
+      8.0,
+      8.0,
+      9.0
+     ]
+    },
+    "up": {
+     "texture": "#atlas",
+     "uv": [
+      0.0,
+      0.0,
+      8.0,
+      8.0
+     ]
+    }
+   }
+  }
+ ]
+}

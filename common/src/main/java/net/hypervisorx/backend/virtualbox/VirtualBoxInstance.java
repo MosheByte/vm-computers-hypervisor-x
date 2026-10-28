@@ -77,7 +77,7 @@ final class VirtualBoxInstance implements VmInstance {
         monitor.setDaemon(true);
         monitor.start();
         if (gpioPort > 0) serial = new TcpSerialLink(gpioPort);
-        setState(State.RUNNING, "Running" + (spec.audio() ? " - guest audio plays on the host speakers" : ""));
+        setState(State.RUNNING, spec.audio() ? "Guest audio plays on the host speakers" : "");
     }
 
     private synchronized void openSession() throws IOException {

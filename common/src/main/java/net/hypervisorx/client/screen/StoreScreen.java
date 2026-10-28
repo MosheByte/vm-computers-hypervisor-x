@@ -25,7 +25,9 @@ import java.util.Map;
  */
 public class StoreScreen extends Screen {
     private static final int CARD_W = 104;
-    private static final int CARD_H = 46;
+    private static final int CARD_H = 44;
+    private static final int SIDE_W = 92;
+    private static final int CART_W = 124;
 
     private StoreCatalog.Category category = StoreCatalog.Category.BUNDLES;
     private EditBox search;
@@ -46,33 +48,37 @@ public class StoreScreen extends Screen {
 
     @Override
     protected void init() {
-        panelW = Math.min(width - 20, 470);
-        panelH = Math.min(height - 20, 280);
+        panelW = Math.min(width - 16, 476);
+        panelH = Math.min(height - 16, 282);
         left = (width - panelW) / 2;
         top = (height - panelH) / 2;
-        search = new EditBox(font, left + 92, top + 24, panelW - 92 - 132, 14, Component.translatable("hypervisorx.store.search"));
+        search = new UiKit.Field(font, gridX(), top + 25, gridW(), 15, Component.translatable("hypervisorx.store.search"));
         search.setHint(Component.translatable("hypervisorx.store.search"));
         search.setResponder(s -> {
             scroll = 0;
             refresh();
         });
         addRenderableWidget(search);
-        int y = top + 24;
+        int y = top + 25;
+        int rowH = Math.max(14, Math.min(19, (panelH - 32) / StoreCatalog.Category.values().length));
         for (StoreCatalog.Category c : StoreCatalog.Category.values()) {
-            addRenderableWidget(new UiKit.FlatButton(left + 6, y, 80, 15, Component.translatable("hypervisorx.store.cat." + c.name().toLowerCase(Locale.ROOT)),
-                    () -> {
+            addRenderableWidget(new UiKit.FlatButton(left + 6, y, SIDE_W - 6, rowH - 2,
+                    Component.translatable("hypervisorx.store.cat." + c.name().toLowerCase(Locale.ROOT)), () -> {
                         category = c;
                         scroll = 0;
+                        if (search != null) search.setValue("");
                         refresh();
-                    }).accent(c == StoreCatalog.Category.BUNDLES ? UiKit.ACCENT_2 : UiKit.ACCENT));
-            y += 17;
+                    }).icon(categoryIcon(c)).style(UiKit.Style.GHOST).selectedWhen(() -> category == c && (search == null || search.getValue().isEmpty()))
+                    .accent(c == StoreCatalog.Category.BUNDLES ? UiKit.ACCENT_2 : UiKit.ACCENT));
+            y += rowH;
         }
-        addRenderableWidget(new UiKit.FlatButton(left + panelW - 126, top + panelH - 40, 120, 16, Component.translatable("hypervisorx.store.checkout"),
-                this::checkout).enabledWhen(() -> !cart.isEmpty()).accent(UiKit.OK));
-        addRenderableWidget(new UiKit.FlatButton(left + panelW - 126, top + panelH - 21, 58, 15, Component.translatable("hypervisorx.store.clear"),
-                cart::clear).enabledWhen(() -> !cart.isEmpty()).accent(UiKit.ERROR));
-        addRenderableWidget(new UiKit.FlatButton(left + panelW - 64, top + panelH - 21, 58, 15, Component.translatable("hypervisorx.ui.library"),
-                () -> minecraft.setScreen(new LibraryScreen(this))).accent(UiKit.ACCENT_2));
+        int cx = left + panelW - CART_W - 6;
+        addRenderableWidget(new UiKit.FlatButton(cx, top + panelH - 42, CART_W, 18, Component.translatable("hypervisorx.store.checkout"),
+                this::checkout).enabledWhen(() -> !cart.isEmpty()).icon(UiKit.Icon.ROCKET).style(UiKit.Style.PRIMARY));
+        addRenderableWidget(new UiKit.FlatButton(cx, top + panelH - 21, CART_W / 2 - 2, 15, Component.translatable("hypervisorx.store.clear"),
+                cart::clear).enabledWhen(() -> !cart.isEmpty()).icon(UiKit.Icon.TRASH).style(UiKit.Style.DANGER));
+        addRenderableWidget(new UiKit.FlatButton(cx + CART_W / 2 + 1, top + panelH - 21, CART_W - CART_W / 2 - 1, 15, Component.translatable("hypervisorx.ui.library"),
+                () -> minecraft.setScreen(new LibraryScreen(this))).icon(UiKit.Icon.LIBRARY).accent(UiKit.ACCENT_2));
         refresh();
     }
 
@@ -93,41 +99,63 @@ public class StoreScreen extends Screen {
         return p.isBundle() ? Component.translatable("store.hypervisorx.bundle_name." + p.id()) : p.icon().getHoverName();
     }
 
+    private static UiKit.Icon categoryIcon(StoreCatalog.Category c) {
+        return switch (c) {
+            case BUNDLES -> UiKit.Icon.BOX;
+            case CPU -> UiKit.Icon.CHIP;
+            case MEMORY -> UiKit.Icon.MEMORY;
+            case GRAPHICS -> UiKit.Icon.EYE;
+            case STORAGE -> UiKit.Icon.DRIVE;
+            case EXPANSION -> UiKit.Icon.WIFI;
+            case CASES -> UiKit.Icon.SERVER;
+            case DISPLAYS -> UiKit.Icon.MONITOR;
+            case LAPTOPS -> UiKit.Icon.FOCUS;
+            case PERIPHERALS -> UiKit.Icon.KEYBOARD;
+        };
+    }
+
     private int gridX() {
-        return left + 92;
+        return left + SIDE_W + 6;
     }
 
     private int gridY() {
-        return top + 42;
+        return top + 45;
     }
 
     private int gridW() {
-        return panelW - 92 - 132;
+        return panelW - SIDE_W - CART_W - 18;
     }
 
     private int gridH() {
-        return panelH - 48;
+        return panelH - 64;
     }
 
     private int columns() {
         return Math.max(1, (gridW() + 4) / (CARD_W + 4));
     }
 
+    private int cardW() {
+        int cols = columns();
+        return (gridW() - (cols - 1) * 4) / cols;
+    }
+
     @Override
     public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         super.renderBackground(g, mouseX, mouseY, partialTick);
-        g.fill(left, top, left + panelW, top + panelH, UiKit.BG);
-        UiKit.header(g, font, left, top, panelW, title);
+        UiKit.window(g, font, left, top, panelW, panelH, UiKit.Icon.CART, title, null);
         long t = System.currentTimeMillis();
         // little orbiting satellite up in the corner
-        int cx = left + panelW - 20;
-        int cy = top + 9;
+        int cx = left + panelW - 16;
+        int cy = top + 10;
         double a = (t % 6000) / 6000.0 * Math.PI * 2;
-        g.fill(cx - 1, cy - 1, cx + 2, cy + 2, UiKit.ACCENT);
+        UiKit.dot(g, cx - 2, cy - 2, UiKit.ACCENT_2);
         int sx = cx + (int) (Math.cos(a) * 8);
         int sy = cy + (int) (Math.sin(a) * 4);
         g.fill(sx - 1, sy, sx + 2, sy + 1, UiKit.WARN);
-        g.drawString(font, Component.translatable("hypervisorx.store.satellite"), left + panelW - 160, top + 5, UiKit.MUTED, false);
+        String sat = Component.translatable("hypervisorx.store.satellite").getString();
+        UiKit.text(g, font, sat, cx - 14 - font.width(sat) * 0.75f, top + 7, UiKit.MUTED, 0.75f);
+        UiKit.section(g, font, left + panelW - CART_W - 12, top + 24, CART_W + 12, panelH - 72, Component.translatable("hypervisorx.store.cart"));
+        UiKit.icon(g, UiKit.Icon.SEARCH, gridX() + gridW() - 16, top + 26, UiKit.DIM);
     }
 
     @Override
@@ -136,7 +164,7 @@ public class StoreScreen extends Screen {
         renderGrid(g, mouseX, mouseY);
         renderCart(g);
         if (System.currentTimeMillis() - statusTime < 8000) {
-            g.drawString(font, status, left + 92, top + panelH - 12, statusColor, false);
+            UiKit.textFit(g, font, status.getString(), gridX(), top + panelH - 13, gridW(), statusColor, 0.75f);
         }
         StoreCatalog.Product hovered = productAt(mouseX, mouseY);
         if (hovered != null) {
@@ -163,21 +191,24 @@ public class StoreScreen extends Screen {
         int maxScroll = Math.max(0, rows * (CARD_H + 4) - gridH());
         scroll = Mth.clamp(scroll, 0, maxScroll);
         g.enableScissor(gridX(), gridY(), gridX() + gridW(), gridY() + gridH());
+        int cw = cardW();
         for (int i = 0; i < visible.size(); i++) {
             StoreCatalog.Product p = visible.get(i);
-            int x = gridX() + (i % cols) * (CARD_W + 4);
+            int x = gridX() + (i % cols) * (cw + 4);
             int y = gridY() + (i / cols) * (CARD_H + 4) - (int) scroll;
             if (y + CARD_H < gridY() || y > gridY() + gridH()) continue;
-            boolean hover = mouseX >= x && mouseX < x + CARD_W && mouseY >= y && mouseY < y + CARD_H && mouseY >= gridY() && mouseY < gridY() + gridH();
-            UiKit.card(g, x, y, CARD_W, CARD_H, hover);
-            g.renderItem(p.icon(), x + 4, y + 4);
-            g.drawString(font, UiKit.ellipsize(font, displayName(p).getString(), CARD_W - 26), x + 23, y + 5, UiKit.TEXT, false);
+            boolean hover = mouseX >= x && mouseX < x + cw && mouseY >= y && mouseY < y + CARD_H && mouseY >= gridY() && mouseY < gridY() + gridH();
+            Integer q = cart.get(p.id());
+            UiKit.card(g, x, y, cw, CARD_H, hover);
+            if (q != null) UiKit.stroke(g, x, y, cw, CARD_H, UiKit.withAlpha(UiKit.OK, 0xB0));
+            UiKit.round(g, x + 4, y + 4, 22, 22, 0xFF0F1216);
+            g.renderItem(p.icon(), x + 7, y + 7);
+            UiKit.paragraph(g, font, displayName(p).getString(), x + 30, y + 5, cw - 34, 2, UiKit.TEXT, 0.75f);
             String sub = p.isBundle() ? Component.translatable("hypervisorx.store.items", p.contents().stream().mapToInt(StoreCatalog.Line::count).sum()).getString()
                     : specLine(p.icon());
-            g.drawString(font, UiKit.ellipsize(font, sub, CARD_W - 26), x + 23, y + 16, UiKit.MUTED, false);
-            g.drawString(font, p.price() + " ¢", x + 4, y + CARD_H - 11, UiKit.WARN, false);
-            Integer q = cart.get(p.id());
-            if (q != null) g.drawString(font, "×" + q, x + CARD_W - 4 - font.width("×" + q), y + CARD_H - 11, UiKit.OK, false);
+            UiKit.textFit(g, font, sub, x + 30, y + 21, cw - 34, UiKit.MUTED, 0.75f);
+            UiKit.textFit(g, font, p.price() + " \u00a2", x + 6, y + CARD_H - 11, cw / 2, UiKit.WARN, 1f);
+            if (q != null) UiKit.pill(g, font, x + cw - 4, y + CARD_H - 14, "\u00d7" + q, UiKit.OK);
         }
         g.disableScissor();
     }
@@ -188,38 +219,41 @@ public class StoreScreen extends Screen {
     }
 
     private void renderCart(GuiGraphics g) {
-        int x = left + panelW - 128;
-        int y = top + 22;
-        UiKit.panel(g, x - 2, y, 126, panelH - 66);
-        g.drawString(font, Component.translatable("hypervisorx.store.cart"), x + 3, y + 4, UiKit.ACCENT, false);
+        int x = left + panelW - CART_W - 6;
+        int y = top + 24;
         int ly = y + 16;
         long total = 0;
         for (Map.Entry<String, Integer> e : cart.entrySet()) {
             StoreCatalog.Product p = StoreCatalog.get(e.getKey());
             if (p == null) continue;
             total += (long) p.price() * e.getValue();
-            if (ly < y + panelH - 90) {
-                g.renderItem(p.icon(), x + 2, ly - 4);
-                g.drawString(font, UiKit.ellipsize(font, e.getValue() + "× " + displayName(p).getString(), 100), x + 20, ly, UiKit.TEXT, false);
-                ly += 14;
+            if (ly < y + panelH - 112) {
+                g.renderItem(p.icon(), x + 1, ly - 3);
+                UiKit.textFit(g, font, displayName(p).getString(), x + 20, ly - 1, CART_W - 46, UiKit.TEXT, 0.75f);
+                UiKit.textFit(g, font, "\u00d7" + e.getValue() + "  " + (long) p.price() * e.getValue() + " \u00a2", x + 20, ly + 6, CART_W - 22, UiKit.MUTED, 0.75f);
+                ly += 18;
             }
         }
         long credits = minecraft.player == null ? 0 : net.hypervisorx.store.StoreService.credits(minecraft.player.getInventory());
         boolean creative = minecraft.player != null && minecraft.player.getAbilities().instabuild;
-        g.drawString(font, Component.translatable("hypervisorx.store.total", total), x + 3, top + panelH - 64, UiKit.WARN, false);
-        g.drawString(font, creative ? Component.translatable("hypervisorx.store.free_creative")
-                : Component.translatable("hypervisorx.store.wallet", credits), x + 3, top + panelH - 54, credits >= total || creative ? UiKit.OK : UiKit.ERROR, false);
+        int by = top + panelH - 70;
+        g.fill(x, by - 4, x + CART_W, by - 3, UiKit.STROKE_SOFT);
+        UiKit.textFit(g, font, Component.translatable("hypervisorx.store.total", total).getString(), x + 2, by, CART_W - 4, UiKit.WARN, 1f);
+        UiKit.textFit(g, font, (creative ? Component.translatable("hypervisorx.store.free_creative")
+                : Component.translatable("hypervisorx.store.wallet", credits)).getString(), x + 2, by + 11, CART_W - 4,
+                credits >= total || creative ? UiKit.OK : UiKit.ERROR, 0.75f);
     }
 
     private StoreCatalog.Product productAt(double mx, double my) {
         if (mx < gridX() || mx >= gridX() + gridW() || my < gridY() || my >= gridY() + gridH()) return null;
         int cols = columns();
-        int col = (int) ((mx - gridX()) / (CARD_W + 4));
+        int cw = cardW();
+        int col = (int) ((mx - gridX()) / (cw + 4));
         int row = (int) ((my - gridY() + scroll) / (CARD_H + 4));
         if (col >= cols) return null;
-        int lx = (int) ((mx - gridX()) % (CARD_W + 4));
+        int lx = (int) ((mx - gridX()) % (cw + 4));
         int ly = (int) ((my - gridY() + scroll) % (CARD_H + 4));
-        if (lx >= CARD_W || ly >= CARD_H) return null;
+        if (lx >= cw || ly >= CARD_H) return null;
         int idx = row * cols + col;
         return idx >= 0 && idx < visible.size() ? visible.get(idx) : null;
     }

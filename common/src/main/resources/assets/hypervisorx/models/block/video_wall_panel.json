@@ -1,42 +1,263 @@
 {
-  "parent": "block/block",
-  "textures": {
-    "particle": "hypervisorx:block/video_wall_front",
-    "front": "hypervisorx:block/video_wall_front",
-    "back": "hypervisorx:block/monitor_back"
-  },
-  "elements": [
-    {
-      "from": [
-        0,
-        0,
-        13
-      ],
-      "to": [
-        16,
-        16,
-        16
-      ],
-      "faces": {
-        "north": {
-          "texture": "#front"
-        },
-        "south": {
-          "texture": "#back"
-        },
-        "east": {
-          "texture": "#back"
-        },
-        "west": {
-          "texture": "#back"
-        },
-        "up": {
-          "texture": "#back"
-        },
-        "down": {
-          "texture": "#back"
-        }
-      }
+ "parent": "block/block",
+ "textures": {
+  "atlas": "hypervisorx:block/model/video_wall_panel",
+  "particle": "hypervisorx:block/model/video_wall_panel"
+ },
+ "elements": [
+  {
+   "from": [
+    0.0,
+    0.0,
+    13.0
+   ],
+   "to": [
+    16.0,
+    16.0,
+    14.0
+   ],
+   "faces": {
+    "north": {
+     "texture": "#atlas",
+     "uv": [
+      0.0,
+      0.0,
+      4.0,
+      4.0
+     ]
+    },
+    "east": {
+     "texture": "#atlas",
+     "uv": [
+      4.0,
+      0.0,
+      4.25,
+      4.0
+     ]
+    },
+    "west": {
+     "texture": "#atlas",
+     "uv": [
+      4.25,
+      0.0,
+      4.5,
+      4.0
+     ]
+    },
+    "up": {
+     "texture": "#atlas",
+     "uv": [
+      3.5,
+      4.0,
+      7.5,
+      4.25
+     ]
+    },
+    "down": {
+     "texture": "#atlas",
+     "uv": [
+      7.5,
+      4.0,
+      11.5,
+      4.25
+     ]
     }
-  ]
+   }
+  },
+  {
+   "from": [
+    1.0,
+    1.0,
+    14.0
+   ],
+   "to": [
+    15.0,
+    15.0,
+    15.5
+   ],
+   "faces": {
+    "south": {
+     "texture": "#atlas",
+     "uv": [
+      6.0,
+      0.0,
+      9.5,
+      3.5
+     ]
+    },
+    "east": {
+     "texture": "#atlas",
+     "uv": [
+      9.5,
+      0.0,
+      9.875,
+      3.5
+     ]
+    },
+    "west": {
+     "texture": "#atlas",
+     "uv": [
+      9.875,
+      0.0,
+      10.25,
+      3.5
+     ]
+    },
+    "up": {
+     "texture": "#atlas",
+     "uv": [
+      10.25,
+      0.0,
+      13.75,
+      0.375
+     ]
+    },
+    "down": {
+     "texture": "#atlas",
+     "uv": [
+      0.0,
+      4.0,
+      3.5,
+      4.375
+     ]
+    }
+   }
+  },
+  {
+   "from": [
+    3.0,
+    0.5,
+    15.5
+   ],
+   "to": [
+    4.0,
+    15.5,
+    16.0
+   ],
+   "faces": {
+    "north": {
+     "texture": "#atlas",
+     "uv": [
+      4.5,
+      0.0,
+      4.75,
+      3.75
+     ]
+    },
+    "south": {
+     "texture": "#atlas",
+     "uv": [
+      4.75,
+      0.0,
+      5.0,
+      3.75
+     ]
+    },
+    "east": {
+     "texture": "#atlas",
+     "uv": [
+      5.5,
+      0.0,
+      5.625,
+      3.75
+     ]
+    },
+    "west": {
+     "texture": "#atlas",
+     "uv": [
+      5.625,
+      0.0,
+      5.75,
+      3.75
+     ]
+    },
+    "up": {
+     "texture": "#atlas",
+     "uv": [
+      11.5,
+      4.0,
+      11.75,
+      4.125
+     ]
+    },
+    "down": {
+     "texture": "#atlas",
+     "uv": [
+      11.75,
+      4.0,
+      12.0,
+      4.125
+     ]
+    }
+   }
+  },
+  {
+   "from": [
+    12.0,
+    0.5,
+    15.5
+   ],
+   "to": [
+    13.0,
+    15.5,
+    16.0
+   ],
+   "faces": {
+    "north": {
+     "texture": "#atlas",
+     "uv": [
+      5.0,
+      0.0,
+      5.25,
+      3.75
+     ]
+    },
+    "south": {
+     "texture": "#atlas",
+     "uv": [
+      5.25,
+      0.0,
+      5.5,
+      3.75
+     ]
+    },
+    "east": {
+     "texture": "#atlas",
+     "uv": [
+      5.75,
+      0.0,
+      5.875,
+      3.75
+     ]
+    },
+    "west": {
+     "texture": "#atlas",
+     "uv": [
+      5.875,
+      0.0,
+      6.0,
+      3.75
+     ]
+    },
+    "up": {
+     "texture": "#atlas",
+     "uv": [
+      12.0,
+      4.0,
+      12.25,
+      4.125
+     ]
+    },
+    "down": {
+     "texture": "#atlas",
+     "uv": [
+      12.25,
+      4.0,
+      12.5,
+      4.125
+     ]
+    }
+   }
+  }
+ ]
 }

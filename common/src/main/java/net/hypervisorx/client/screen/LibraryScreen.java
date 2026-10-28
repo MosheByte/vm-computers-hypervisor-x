@@ -43,28 +43,32 @@ public class LibraryScreen extends Screen {
 
     @Override
     protected void init() {
-        w = Math.min(width - 20, 440);
-        h = Math.min(height - 20, 260);
+        w = Math.min(width - 16, 448);
+        h = Math.min(height - 16, 266);
         left = (width - w) / 2;
         top = (height - h) / 2;
         int x = left + 6;
+        int tabW = Math.min(110, (w - 12 - 70) / 3 - 3);
+        UiKit.Icon[] icons = {UiKit.Icon.CHIP, UiKit.Icon.DISC, UiKit.Icon.DOWNLOAD};
         for (Tab t : Tab.values()) {
-            addRenderableWidget(new UiKit.FlatButton(x, top + 22, 96, 15, Component.translatable("hypervisorx.library.tab." + t.name().toLowerCase()),
+            addRenderableWidget(new UiKit.FlatButton(x, top + 24, tabW, 16, Component.translatable("hypervisorx.library.tab." + t.name().toLowerCase()),
                     () -> {
                         tab = t;
                         scroll = 0;
-                    }).accent(t == Tab.CATALOG ? UiKit.ACCENT_2 : UiKit.ACCENT));
-            x += 99;
+                    }).icon(icons[t.ordinal()]).style(UiKit.Style.GHOST).selectedWhen(() -> tab == t)
+                    .accent(t == Tab.CATALOG ? UiKit.ACCENT_2 : UiKit.ACCENT));
+            x += tabW + 3;
         }
-        addRenderableWidget(new UiKit.FlatButton(left + w - 66, top + 22, 60, 15, Component.translatable("gui.back"), this::onClose));
-        addRenderableWidget(new UiKit.FlatButton(left + 6, top + h - 21, 110, 15, Component.translatable("hypervisorx.library.import"),
-                () -> minecraft.setScreen(new FileBrowserScreen(this)))
+        addRenderableWidget(new UiKit.FlatButton(left + w - 66, top + 24, 60, 16, Component.translatable("gui.back"), this::onClose).icon(UiKit.Icon.BACK));
+        int bw = Math.min(130, (w - 18) / 3);
+        addRenderableWidget(new UiKit.FlatButton(left + 6, top + h - 22, bw, 16, Component.translatable("hypervisorx.library.import"),
+                () -> minecraft.setScreen(new FileBrowserScreen(this))).icon(UiKit.Icon.FOLDER)
                 .enabledWhen(() -> ClientVmCache.library() != null && ClientVmCache.library().singleplayerHost()).accent(UiKit.OK));
-        addRenderableWidget(new UiKit.FlatButton(left + 120, top + h - 21, 110, 15, Component.translatable("hypervisorx.library.rescan"),
-                () -> send(C2S.LibraryAction.RESCAN, ""))
+        addRenderableWidget(new UiKit.FlatButton(left + 9 + bw, top + h - 22, bw, 16, Component.translatable("hypervisorx.library.rescan"),
+                () -> send(C2S.LibraryAction.RESCAN, "")).icon(UiKit.Icon.RESET)
                 .enabledWhen(() -> ClientVmCache.library() != null && ClientVmCache.library().canEdit()));
-        addRenderableWidget(new UiKit.FlatButton(left + 234, top + h - 21, 110, 15, Component.translatable("hypervisorx.settings.title"),
-                () -> minecraft.setScreen(new SettingsScreen(this))).accent(UiKit.ACCENT_2));
+        addRenderableWidget(new UiKit.FlatButton(left + 12 + 2 * bw, top + h - 22, bw, 16, Component.translatable("hypervisorx.settings.title"),
+                () -> minecraft.setScreen(new SettingsScreen(this))).icon(UiKit.Icon.GEAR).accent(UiKit.ACCENT_2));
         send(C2S.LibraryAction.REFRESH, "");
     }
 
@@ -87,8 +91,7 @@ public class LibraryScreen extends Screen {
     @Override
     public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         super.renderBackground(g, mouseX, mouseY, partialTick);
-        g.fill(left, top, left + w, top + h, UiKit.BG);
-        UiKit.header(g, font, left, top, w, title);
+        UiKit.window(g, font, left, top, w, h, UiKit.Icon.LIBRARY, title, null);
     }
 
     @Override
@@ -96,8 +99,8 @@ public class LibraryScreen extends Screen {
         super.render(g, mouseX, mouseY, partialTick);
         rows.clear();
         S2C.Library lib = ClientVmCache.library();
-        int listTop = top + 42;
-        int listBottom = top + h - 26;
+        int listTop = top + 45;
+        int listBottom = top + h - 27;
         g.enableScissor(left + 4, listTop, left + w - 4, listBottom);
         int y = listTop - (int) scroll;
         if (lib == null) {
@@ -122,24 +125,29 @@ public class LibraryScreen extends Screen {
 
     private void drawRowButton(GuiGraphics g, int x, int y, int bw, Component label, boolean enabled, int mx, int my) {
         boolean hover = enabled && mx >= x && mx < x + bw && my >= y && my < y + 14;
-        g.fill(x, y, x + bw, y + 14, !enabled ? 0xFF151A22 : hover ? UiKit.CARD_HOVER : UiKit.CARD);
-        g.fill(x, y + 13, x + bw, y + 14, enabled ? UiKit.ACCENT : UiKit.BORDER);
-        g.drawCenteredString(font, UiKit.ellipsize(font, label.getString(), bw - 4), x + bw / 2, y + 3, enabled ? UiKit.TEXT : UiKit.MUTED);
+        UiKit.round(g, x, y, bw, 14, !enabled ? UiKit.STROKE_SOFT : hover ? UiKit.ACCENT : UiKit.STROKE);
+        UiKit.round(g, x + 1, y + 1, bw - 2, 12, !enabled ? 0xFF14171C : hover ? UiKit.CARD_HOVER : UiKit.CARD);
+        String s = UiKit.clip(font, label.getString(), (int) ((bw - 6) / 0.75f));
+        UiKit.text(g, font, s, x + bw / 2f - font.width(s) * 0.375f, y + 4, enabled ? UiKit.TEXT : UiKit.DIM, 0.75f);
     }
 
     private int drawBackends(GuiGraphics g, S2C.Library lib, int y) {
         if (lib.hostCpus() > 0) {
-            g.drawString(font, Component.translatable("hypervisorx.library.host", lib.hostCpus(), lib.hostRamMb() / 1024), left + 10, y + 2, UiKit.MUTED, false);
-            y += 14;
+            UiKit.icon(g, UiKit.Icon.SERVER, left + 10, y, UiKit.DIM);
+            UiKit.textFit(g, font, Component.translatable("hypervisorx.library.host", lib.hostCpus(), lib.hostRamMb() / 1024).getString(),
+                    left + 26, y + 3, w - 40, UiKit.MUTED, 0.75f);
+            y += 15;
         }
         for (S2C.BackendEntry b : lib.backends()) {
-            UiKit.card(g, left + 8, y, w - 16, 34, false);
-            UiKit.dot(g, left + 14, y + 6, b.available() ? UiKit.OK : UiKit.ERROR);
-            String name = b.name() + (b.version().isEmpty() ? "" : "  " + b.version()) + (b.accelerated() ? "  ⚡" : "");
-            g.drawString(font, name, left + 24, y + 5, UiKit.TEXT, false);
-            List<net.minecraft.util.FormattedCharSequence> lines = font.split(Component.literal(b.message()), w - 40);
-            for (int i = 0; i < Math.min(2, lines.size()); i++) g.drawString(font, lines.get(i), left + 24, y + 15 + i * 9, UiKit.MUTED, false);
-            y += 38;
+            UiKit.card(g, left + 8, y, w - 16, 32, false);
+            int c = b.available() ? UiKit.OK : UiKit.ERROR;
+            g.fill(left + 9, y + 2, left + 11, y + 30, c);
+            UiKit.icon(g, b.available() ? UiKit.Icon.CHECK : UiKit.Icon.CROSS, left + 15, y + 4, c);
+            String name = b.name() + (b.version().isEmpty() ? "" : "  " + b.version());
+            UiKit.textFit(g, font, name, left + 31, y + 5, w - 110, UiKit.TEXT, 1f);
+            if (b.accelerated()) UiKit.pill(g, font, left + w - 14, y + 4, "HW accel", UiKit.ACCENT_2);
+            UiKit.paragraph(g, font, b.message(), left + 31, y + 16, w - 48, 2, UiKit.MUTED, 0.75f);
+            y += 35;
         }
         return y;
     }
@@ -151,8 +159,10 @@ public class LibraryScreen extends Screen {
         }
         for (S2C.ImageEntry e : lib.images()) {
             UiKit.card(g, left + 8, y, w - 16, 22, false);
-            g.drawString(font, UiKit.ellipsize(font, e.name(), w - 190), left + 14, y + 3, UiKit.TEXT, false);
-            g.drawString(font, UiKit.bytes(e.size()) + "  " + e.kind().toUpperCase() + (e.linked() ? "  (linked)" : ""), left + 14, y + 12, UiKit.MUTED, false);
+            UiKit.icon(g, e.kind().equalsIgnoreCase("iso") ? UiKit.Icon.DISC : UiKit.Icon.DRIVE, left + 14, y + 5, UiKit.ACCENT_2);
+            UiKit.textFit(g, font, e.name(), left + 30, y + 3, w - 120, UiKit.TEXT, 1f);
+            UiKit.textFit(g, font, UiKit.bytes(e.size()) + "  \u00b7  " + e.kind().toUpperCase() + (e.linked() ? "  \u00b7  linked" : ""), left + 30, y + 13,
+                    w - 120, UiKit.MUTED, 0.75f);
             String name = e.name();
             rows.add(new Row(y + 4, 14, () -> send(C2S.LibraryAction.DELETE, name), Component.translatable("hypervisorx.library.remove"),
                     lib.canEdit(), null, null));
@@ -165,15 +175,16 @@ public class LibraryScreen extends Screen {
         for (OsCatalog.Entry e : OsCatalog.ENTRIES) {
             S2C.DownloadEntry job = lib.downloads().stream().filter(d -> d.id().equals(e.id())).findFirst().orElse(null);
             UiKit.card(g, left + 8, y, w - 16, 40, false);
-            g.drawString(font, e.name() + "  · " + e.size(), left + 14, y + 4, UiKit.TEXT, false);
-            List<net.minecraft.util.FormattedCharSequence> lines = font.split(Component.literal(e.description()), w - 180);
-            for (int i = 0; i < Math.min(2, lines.size()); i++) g.drawString(font, lines.get(i), left + 14, y + 15 + i * 9, UiKit.MUTED, false);
+            UiKit.icon(g, UiKit.Icon.DISC, left + 14, y + 4, UiKit.ACCENT);
+            UiKit.textFit(g, font, e.name(), left + 30, y + 5, w - 200, UiKit.TEXT, 1f);
+            UiKit.text(g, font, e.size(), left + 30 + Math.min(w - 200, font.width(e.name())) + 6, y + 6, UiKit.DIM, 0.75f);
+            UiKit.paragraph(g, font, e.description(), left + 30, y + 16, w - 200, 2, UiKit.MUTED, 0.75f);
             if (job != null) {
                 double frac = job.total() > 0 ? job.done() / (double) job.total() : 0;
-                int color = job.state().startsWith("failed") ? UiKit.ERROR : job.state().startsWith("done") ? UiKit.OK : UiKit.ACCENT;
-                UiKit.progress(g, left + 14, y + 35, w - 180, 3, job.state().startsWith("done") ? 1 : frac, color);
-                g.drawString(font, UiKit.ellipsize(font, job.state() + (job.total() > 0 ? "  " + UiKit.bytes(job.done()) + "/" + UiKit.bytes(job.total()) : ""), 150),
-                        left + w - 160, y + 26, color, false);
+                int color = job.state().startsWith("failed") ? UiKit.ERROR : job.state().startsWith("done") ? UiKit.OK : UiKit.ACCENT_2;
+                UiKit.progress(g, left + w - 160, y + 33, 150, 3, job.state().startsWith("done") ? 1 : frac, color);
+                UiKit.textFit(g, font, job.state() + (job.total() > 0 ? "  " + UiKit.bytes(job.done()) + " / " + UiKit.bytes(job.total()) : ""),
+                        left + w - 160, y + 24, 150, color, 0.75f);
             }
             boolean manual = e.kind() == OsCatalog.Kind.MANUAL;
             boolean busy = job != null && (job.state().startsWith("downloading") || job.state().equals("resolving") || job.state().equals("extracting"));

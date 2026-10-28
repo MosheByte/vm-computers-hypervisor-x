@@ -27,12 +27,14 @@ import java.util.Locale;
  * hypervisor, OS image and sharing on the right, and power the machine on.
  */
 public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
-    private static final int RIGHT_X = 178;
-    private static final int RIGHT_W = 156;
+    private static final int W = 356;
+    private static final int H = 236;
+    private static final int RIGHT_X = 184;
+    private static final int RIGHT_W = 166;
     private static final List<String> BACKENDS = List.of("auto", "vmware", "virtualbox", "qemu", "embedded", "hostcapture");
 
     private S2C.HostInfo info;
-    private int statusY = 170;
+    private int powerY;
     private int slot;
     private boolean fieldsDirty;
     private boolean populated;
@@ -51,10 +53,8 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
 
     public ComputerScreen(ComputerMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
-        imageWidth = 340;
-        imageHeight = 228;
-        inventoryLabelY = ComputerMenu.INV_Y - 11;
-        titleLabelY = 5;
+        imageWidth = W;
+        imageHeight = H;
     }
 
     private boolean rack() {
@@ -65,100 +65,123 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
     protected void init() {
         super.init();
         Services.PLATFORM.sendToServer(new C2S.LibraryAction(C2S.LibraryAction.REFRESH, ""));
-        int x = leftPos + RIGHT_X;
-        int y = topPos + 22;
-        int half = (RIGHT_W - 3) / 2;
+        int x = leftPos + RIGHT_X + 6;
+        int fw = RIGHT_W - 12;
+        int half = (fw - 3) / 2;
+        int y = topPos + 37;
         if (rack()) {
-            // VM slot tabs live in the header next to the "System" label
+            // VM slot tabs in the title bar
+            int tx = leftPos + W - 6 - 5 * 26 - 22;
             for (int i = 0; i < 4; i++) {
                 final int s = i;
-                addRenderableWidget(new UiKit.FlatButton(x + 44 + i * 22, topPos + 3, 20, 12, Component.literal("" + (i + 1)), () -> selectSlot(s))
-                        .enabledWhen(() -> slotInfo(s) != null).accent(UiKit.ACCENT_2));
+                addRenderableWidget(new UiKit.FlatButton(tx + i * 26, topPos + 4, 24, 12, Component.literal(String.valueOf(i + 1)), () -> selectSlot(s))
+                        .enabledWhen(() -> slotInfo(s) != null).selectedWhen(() -> slot == s)
+                        .tip(Component.translatable("hypervisorx.ui.slot", i + 1)));
             }
-            addRenderableWidget(new UiKit.FlatButton(x + 44 + 4 * 22, topPos + 3, 24, 12, Component.literal("+"),
-                    () -> act(C2S.HostAction.ADD_VM)).accent(UiKit.OK));
+            addRenderableWidget(new UiKit.FlatButton(tx + 4 * 26, topPos + 4, 20, 12, Component.empty(), () -> act(C2S.HostAction.ADD_VM))
+                    .icon(UiKit.Icon.PLUS).accent(UiKit.OK).tip(Component.translatable("hypervisorx.ui.tip.add_vm")));
+            addRenderableWidget(new UiKit.FlatButton(tx + 4 * 26 + 22, topPos + 4, 20, 12, Component.empty(), () -> act(C2S.HostAction.DELETE_VM))
+                    .icon(UiKit.Icon.TRASH).style(UiKit.Style.DANGER).tip(Component.translatable("hypervisorx.ui.tip.delete_vm"))
+                    .enabledWhen(() -> current() != null && current().vm() != null && !running()));
         }
-        name = new EditBox(font, x + 1, y, RIGHT_W - 2, 14, Component.translatable("hypervisorx.ui.name"));
+        name = new UiKit.Field(font, x, y, fw, 14, Component.translatable("hypervisorx.ui.name"));
         name.setMaxLength(48);
+        name.setHint(Component.translatable("hypervisorx.ui.name"));
         name.setResponder(s -> fieldsDirty = true);
         addRenderableWidget(name);
         y += 16;
-        backend = addRenderableWidget(new UiKit.ChoiceButton<>(x, y, RIGHT_W, 15, "", BACKENDS, "auto", this::backendLabel, v -> fieldsDirty = true));
+        backend = addRenderableWidget(new UiKit.ChoiceButton<>(x, y, fw, 14, "", BACKENDS, "auto", this::backendLabel, v -> fieldsDirty = true));
         y += 16;
-        guestOs = addRenderableWidget(new UiKit.ChoiceButton<>(x, y, half, 15, "", Arrays.asList(GuestOs.values()), GuestOs.LINUX,
+        guestOs = addRenderableWidget(new UiKit.ChoiceButton<>(x, y, half, 14, "", Arrays.asList(GuestOs.values()), GuestOs.LINUX,
                 GuestOs::displayName, v -> fieldsDirty = true));
-        efi = addRenderableWidget(new UiKit.ChoiceButton<>(x + half + 3, y, half, 15, "", List.of(false, true), false,
+        efi = addRenderableWidget(new UiKit.ChoiceButton<>(x + half + 3, y, fw - half - 3, 14, "", List.of(false, true), false,
                 v -> v ? "UEFI" : "BIOS", v -> fieldsDirty = true));
         y += 16;
-        image = addRenderableWidget(new UiKit.ChoiceButton<>(x, y, RIGHT_W - 44, 15, "", new ArrayList<>(List.of("")), "",
+        image = addRenderableWidget(new UiKit.ChoiceButton<>(x, y, fw - 22, 14, "", new ArrayList<>(List.of("")), "",
                 v -> v.isEmpty() ? Component.translatable("hypervisorx.ui.no_image").getString() : v, v -> fieldsDirty = true));
-        addRenderableWidget(new UiKit.FlatButton(x + RIGHT_W - 42, y, 42, 15, Component.translatable("hypervisorx.ui.library"),
-                () -> minecraft.setScreen(new LibraryScreen(this))).accent(UiKit.ACCENT_2));
+        addRenderableWidget(new UiKit.FlatButton(x + fw - 20, y, 20, 14, Component.empty(), () -> minecraft.setScreen(new LibraryScreen(this)))
+                .icon(UiKit.Icon.LIBRARY).accent(UiKit.ACCENT_2).tip(Component.translatable("hypervisorx.ui.tip.library")));
         y += 16;
-        target = new EditBox(font, x + 1, y, RIGHT_W - 2, 14, Component.translatable("hypervisorx.ui.target"));
+        target = new UiKit.Field(font, x, y, fw, 14, Component.translatable("hypervisorx.ui.target"));
         target.setMaxLength(200);
         target.setHint(Component.translatable("hypervisorx.ui.target_hint"));
         target.setResponder(s -> fieldsDirty = true);
         addRenderableWidget(target);
         y += 16;
-        access = addRenderableWidget(new UiKit.ChoiceButton<>(x, y, half, 15, "", Arrays.asList(VmRecord.Access.values()), VmRecord.Access.PRIVATE,
+        access = addRenderableWidget(new UiKit.ChoiceButton<>(x, y, half, 14, "", Arrays.asList(VmRecord.Access.values()), VmRecord.Access.PRIVATE,
                 v -> Component.translatable("hypervisorx.access." + v.name().toLowerCase(Locale.ROOT)).getString(), v -> fieldsDirty = true));
-        span = addRenderableWidget(new UiKit.ChoiceButton<>(x + half + 3, y, half, 15, "", List.of(1, 2, 3), 1,
+        span = addRenderableWidget(new UiKit.ChoiceButton<>(x + half + 3, y, fw - half - 3, 14, "", List.of(1, 2, 3), 1,
                 v -> Component.translatable("hypervisorx.ui.span", v).getString(), v -> fieldsDirty = true));
         y += 16;
         if (rack()) {
-            int third = (RIGHT_W - 6) / 3;
-            cores = addRenderableWidget(new UiKit.ChoiceButton<>(x, y, third, 15, "", List.of(1, 2, 4, 6, 8, 12, 16, 24, 32), 2,
+            int third = (fw - 6) / 3;
+            cores = addRenderableWidget(new UiKit.ChoiceButton<>(x, y, third, 14, "", List.of(1, 2, 4, 6, 8, 12, 16, 24, 32), 2,
                     v -> v + " CPU", v -> fieldsDirty = true));
-            ram = addRenderableWidget(new UiKit.ChoiceButton<>(x + third + 3, y, third, 15, "", List.of(1024, 2048, 4096, 8192, 16384, 32768, 65536), 4096,
+            ram = addRenderableWidget(new UiKit.ChoiceButton<>(x + third + 3, y, third, 14, "", List.of(1024, 2048, 4096, 8192, 16384, 32768, 65536), 4096,
                     v -> v / 1024 + " GB", v -> fieldsDirty = true));
-            disk = addRenderableWidget(new UiKit.ChoiceButton<>(x + 2 * (third + 3), y, third, 15, "", List.of(16, 32, 64, 128, 256, 512, 1024, 2048), 64,
-                    v -> v + " GB", v -> fieldsDirty = true));
+            disk = addRenderableWidget(new UiKit.ChoiceButton<>(x + 2 * (third + 3), y, fw - 2 * (third + 3), 14, "",
+                    List.of(16, 32, 64, 128, 256, 512, 1024, 2048), 64, v -> v + " GB", v -> fieldsDirty = true));
             y += 16;
         }
-        trustName = new EditBox(font, x + 1, y, RIGHT_W - 46, 14, Component.translatable("hypervisorx.ui.trust"));
+        trustName = new UiKit.Field(font, x, y, fw - 44, 14, Component.translatable("hypervisorx.ui.trust"));
         trustName.setMaxLength(16);
         trustName.setHint(Component.translatable("hypervisorx.ui.trust_hint"));
         addRenderableWidget(trustName);
-        addRenderableWidget(new UiKit.FlatButton(x + RIGHT_W - 42, y, 20, 14, Component.literal("+"), () -> trust(true)).accent(UiKit.OK));
-        addRenderableWidget(new UiKit.FlatButton(x + RIGHT_W - 20, y, 20, 14, Component.literal("-"), () -> trust(false)).accent(UiKit.ERROR));
-        y += 16;
-        statusY = y + 19 - topPos;
-        addRenderableWidget(new UiKit.FlatButton(x, y, RIGHT_W, 15, Component.translatable("hypervisorx.ui.save"), this::save)
-                .label(() -> Component.translatable(fieldsDirty ? "hypervisorx.ui.save_pending" : "hypervisorx.ui.save")).accent(UiKit.ACCENT));
+        addRenderableWidget(new UiKit.FlatButton(x + fw - 42, y, 20, 14, Component.empty(), () -> trust(true))
+                .icon(UiKit.Icon.USER_PLUS).accent(UiKit.OK).tip(Component.translatable("hypervisorx.ui.tip.trust_add")));
+        addRenderableWidget(new UiKit.FlatButton(x + fw - 20, y, 20, 14, Component.empty(), () -> trust(false))
+                .icon(UiKit.Icon.USER_MINUS).style(UiKit.Style.DANGER).tip(Component.translatable("hypervisorx.ui.tip.trust_remove")));
+        y += 17;
+        addRenderableWidget(new UiKit.FlatButton(x, y, fw, 15, Component.translatable("hypervisorx.ui.save"), this::save)
+                .label(() -> Component.translatable(fieldsDirty ? "hypervisorx.ui.save_pending" : "hypervisorx.ui.save"))
+                .icon(UiKit.Icon.CHECK).style(UiKit.Style.PRIMARY));
+        y += 21;
+        powerY = y - topPos;
 
-        int by = topPos + imageHeight - 37;
-        int third = (RIGHT_W - 6) / 3;
-        addRenderableWidget(new UiKit.FlatButton(x, by, third, 16, Component.empty(), () -> act(running() ? C2S.HostAction.SHUTDOWN : C2S.HostAction.POWER_ON))
-                .label(() -> Component.translatable(running() ? "hypervisorx.focus.shutdown" : "hypervisorx.focus.power_on")).accent(UiKit.OK));
-        addRenderableWidget(new UiKit.FlatButton(x + third + 3, by, third, 16, Component.translatable("hypervisorx.focus.force_off"),
-                () -> act(C2S.HostAction.FORCE_OFF)).enabledWhen(this::running).accent(UiKit.ERROR));
-        addRenderableWidget(new UiKit.FlatButton(x + 2 * (third + 3), by, third, 16, Component.translatable("hypervisorx.focus.reset"),
-                () -> act(C2S.HostAction.RESET)).enabledWhen(this::running).accent(UiKit.WARN));
-        by += 19;
-        addRenderableWidget(new UiKit.FlatButton(x, by, third, 16, Component.translatable("hypervisorx.ui.focus"), () -> act(C2S.HostAction.FOCUS))
-                .enabledWhen(() -> current() != null && current().vm() != null));
-        addRenderableWidget(new UiKit.FlatButton(x + third + 3, by, third, 16, Component.translatable("hypervisorx.focus.snapshot"),
-                () -> act(C2S.HostAction.SNAPSHOT)).enabledWhen(this::running).accent(UiKit.ACCENT_2));
-        addRenderableWidget(new UiKit.FlatButton(x + 2 * (third + 3), by, third, 16, Component.translatable("hypervisorx.ui.media"),
-                () -> act(C2S.HostAction.INSERT_MEDIA)).enabledWhen(this::running));
-        if (rack()) {
-            addRenderableWidget(new UiKit.FlatButton(leftPos + 116, topPos + 4, 56, 12, Component.translatable("hypervisorx.ui.delete_vm"),
-                    () -> act(C2S.HostAction.DELETE_VM)).enabledWhen(() -> current() != null && current().vm() != null && !running()).accent(UiKit.ERROR));
-        }
+        // power & control: icon buttons with tooltips (no labels that could overflow)
+        int by = topPos + H - 26;
+        int bw = (fw - 5 * 3) / 6;
+        int bx = x;
+        addRenderableWidget(new UiKit.FlatButton(bx, by, bw, 18, Component.empty(), () -> act(running() ? C2S.HostAction.SHUTDOWN : C2S.HostAction.POWER_ON))
+                .icon(UiKit.Icon.POWER).accent(UiKit.OK)
+                .tip(() -> Component.translatable(running() ? "hypervisorx.focus.shutdown" : "hypervisorx.focus.power_on")));
+        bx += bw + 3;
+        addRenderableWidget(new UiKit.FlatButton(bx, by, bw, 18, Component.empty(), () -> act(C2S.HostAction.FORCE_OFF)).icon(UiKit.Icon.STOP)
+                .style(UiKit.Style.DANGER).enabledWhen(this::running).tip(Component.translatable("hypervisorx.focus.force_off")));
+        bx += bw + 3;
+        addRenderableWidget(new UiKit.FlatButton(bx, by, bw, 18, Component.empty(), () -> act(C2S.HostAction.RESET)).icon(UiKit.Icon.RESET)
+                .accent(UiKit.WARN).enabledWhen(this::running).tip(Component.translatable("hypervisorx.focus.reset")));
+        bx += bw + 3;
+        addRenderableWidget(new UiKit.FlatButton(bx, by, bw, 18, Component.empty(), () -> act(C2S.HostAction.SNAPSHOT)).icon(UiKit.Icon.CAMERA)
+                .accent(UiKit.ACCENT).enabledWhen(this::running).tip(Component.translatable("hypervisorx.focus.snapshot")));
+        bx += bw + 3;
+        addRenderableWidget(new UiKit.FlatButton(bx, by, bw, 18, Component.empty(), () -> act(C2S.HostAction.INSERT_MEDIA)).icon(UiKit.Icon.DISC)
+                .accent(UiKit.ACCENT_2).enabledWhen(this::running).tip(Component.translatable("hypervisorx.ui.media")));
+        bx += bw + 3;
+        addRenderableWidget(new UiKit.FlatButton(bx, by, x + fw - bx, 18, Component.empty(), () -> act(C2S.HostAction.FOCUS)).icon(UiKit.Icon.FOCUS)
+                .style(UiKit.Style.PRIMARY).enabledWhen(() -> current() != null && current().vm() != null)
+                .tip(Component.translatable("hypervisorx.ui.focus")));
         S2C.HostInfo cached = ClientVmCache.hostInfo();
         if (cached != null && cached.pos().equals(menu.pos())) onHostInfo(cached);
     }
 
     private String backendLabel(String id) {
         if (id.equals("auto")) return Component.translatable("hypervisorx.ui.backend_auto").getString();
+        String shortName = switch (id) {
+            case "vmware" -> "VMware Workstation";
+            case "virtualbox" -> "VirtualBox";
+            case "qemu" -> "QEMU / KVM / WHPX";
+            case "embedded" -> "Embedded MicroVM";
+            case "hostcapture" -> "Host window capture";
+            default -> id;
+        };
         S2C.Library lib = ClientVmCache.library();
         if (lib != null) {
             for (S2C.BackendEntry e : lib.backends()) {
-                if (e.id().equals(id)) return (e.available() ? "✔ " : "✘ ") + e.name();
+                if (e.id().equals(id)) return (e.available() ? "\u2714 " : "\u2718 ") + shortName;
             }
         }
-        return id;
+        return shortName;
     }
 
     private S2C.VmSlotInfo slotInfo(int s) {
@@ -248,95 +271,104 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
     }
 
     @Override
-    public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        super.renderBackground(g, mouseX, mouseY, partialTick);
-    }
-
-    @Override
     protected void renderBg(GuiGraphics g, float partialTick, int mouseX, int mouseY) {
         int x = leftPos;
         int y = topPos;
-        g.fill(x, y, x + imageWidth, y + imageHeight, UiKit.BG);
-        UiKit.header(g, font, x, y, imageWidth, Component.empty());
-        UiKit.panel(g, x + RIGHT_X - 4, y + 19, RIGHT_W + 8, imageHeight - 22);
-        // typed slot frames
+        UiKit.window(g, font, x, y, W, H, rack() ? UiKit.Icon.SERVER : UiKit.Icon.CHIP, title,
+                rack() ? null : Component.translatable("hypervisorx.ui.subtitle"));
+        if (!rack()) {
+            String state = stateOf(current());
+            UiKit.pill(g, font, x + W - 7, y + 4, Component.translatable("hypervisorx.state." + state.toLowerCase(Locale.ROOT)).getString(),
+                    stateColor(state));
+        }
+        // left: hardware + inventory
+        UiKit.section(g, font, x + 6, y + 24, 172, 104, Component.translatable("hypervisorx.ui.hardware"));
+        UiKit.section(g, font, x + 6, y + 132, 172, 98, Component.translatable("hypervisorx.ui.inventory"));
         for (int i = 0; i < menu.form().slotCount(); i++) {
             Slot s = menu.slots.get(i);
             ComponentType type = menu.form().slots().get(i);
-            int sx = x + s.x - 1;
-            int sy = y + s.y - 1;
-            g.fill(sx, sy, sx + 18, sy + 18, 0xFF0B0E13);
             int color = 0xFF000000 | (type.color().getColor() == null ? 0xFFFFFF : type.color().getColor());
-            g.fill(sx, sy + 17, sx + 18, sy + 18, color);
-            if (!s.hasItem()) {
-                String label = switch (type) {
-                    case CPU -> "CPU";
-                    case RAM -> "RAM";
-                    case GPU -> "GPU";
-                    case STORAGE -> "DSK";
-                    case EXPANSION -> "PCIe";
-                    case USB -> "USB";
-                    case BLADE -> "BLD";
-                };
-                g.pose().pushPose();
-                g.pose().translate(sx + 9, sy + 6, 0);
-                g.pose().scale(0.6f, 0.6f, 1f);
-                g.drawCenteredString(font, label, 0, 0, 0xFF5D6778);
-                g.pose().popPose();
-            }
+            UiKit.slot(g, x + s.x, y + s.y, color);
+            if (!s.hasItem()) UiKit.slotGhost(g, type, x + s.x, y + s.y);
         }
-        // player inventory backdrop
         for (int i = menu.form().slotCount(); i < menu.slots.size(); i++) {
             Slot s = menu.slots.get(i);
-            g.fill(x + s.x - 1, y + s.y - 1, x + s.x + 17, y + s.y + 17, 0xFF0B0E13);
+            UiKit.slot(g, x + s.x, y + s.y, 0);
         }
-        renderSpecs(g, x + 10, y + 32 + ((menu.form().slotCount() + ComputerMenu.PART_COLS - 1) / ComputerMenu.PART_COLS) * ComputerMenu.PART_SPACING_Y);
-        renderStatus(g, x + RIGHT_X, y + statusY);
+        renderSpecs(g, x + 104, y + 38);
+        // right: VM settings + power
+        UiKit.section(g, font, x + RIGHT_X, y + 24, RIGHT_W, powerY - 26, Component.translatable("hypervisorx.ui.vm"));
+        UiKit.section(g, font, x + RIGHT_X, y + powerY, RIGHT_W, H - 6 - powerY, Component.translatable("hypervisorx.ui.power"));
+        renderStatus(g, x + RIGHT_X + 6, y + powerY + 14, RIGHT_W - 12, y + H - 30);
     }
 
-    private void renderSpecs(GuiGraphics g, int x, int y) {
-        if (info == null) return;
-        String l1 = info.rack()
-                ? Component.translatable("hypervisorx.ui.pool", info.cores(), info.ramMb() / 1024, info.diskGb()).getString()
-                : Component.translatable("hypervisorx.ui.specs", info.cores(), info.ramMb() / 1024).getString();
-        g.drawString(font, l1, x, y, UiKit.TEXT, false);
-        String l2 = info.width() > 0 ? info.width() + "x" + info.height() + "  ×" + info.displays() : "-";
-        l2 += "  " + (info.diskGb() > 0 ? HardwareItem.formatCapacity(info.diskGb()) + (info.nvme() ? " NVMe" : "") : "no disk");
-        g.drawString(font, l2, x, y + 10, UiKit.MUTED, false);
-        String l3 = (info.gpio() ? "GPIO  " : "") + (info.wifi() ? "Wi-Fi" : "");
-        if (info.rack()) l3 = Component.translatable("hypervisorx.ui.pool_free", info.poolCoresFree(), info.poolRamFree() / 1024, info.poolDiskFree()).getString();
-        g.drawString(font, l3, x, y + 20, UiKit.ACCENT, false);
-        int py = y + 30;
-        for (Component p : info.problems()) {
-            if (py > topPos + ComputerMenu.INV_Y - 14) break;
-            g.drawString(font, "⚠ " + p.getString(), x, py, UiKit.WARN, false);
-            py += 10;
-        }
+    private static String stateOf(S2C.VmSlotInfo v) {
+        return v == null ? "STOPPED" : v.state();
     }
 
-    private void renderStatus(GuiGraphics g, int x, int y) {
-        S2C.VmSlotInfo v = current();
-        String state = v == null ? "STOPPED" : v.state();
-        int color = switch (state) {
+    private static int stateColor(String state) {
+        return switch (state) {
             case "RUNNING" -> UiKit.OK;
             case "STARTING", "STOPPING" -> UiKit.WARN;
             case "ERROR" -> UiKit.ERROR;
             default -> UiKit.MUTED;
         };
-        UiKit.dot(g, x, y + 2, color);
-        g.drawString(font, Component.translatable("hypervisorx.state." + state.toLowerCase(Locale.ROOT)), x + 8, y, color, false);
-        if (v != null && !v.message().isEmpty()) {
-            List<net.minecraft.util.FormattedCharSequence> lines = font.split(Component.literal(v.message()), RIGHT_W);
-            int maxLines = rack() ? 1 : 2;
-            for (int i = 0; i < Math.min(maxLines, lines.size()); i++) g.drawString(font, lines.get(i), x, y + 10 + i * 9, UiKit.MUTED, false);
+    }
+
+    private void renderSpecs(GuiGraphics g, int x, int y) {
+        int w = 70;
+        if (info == null) return;
+        int row = 0;
+        if (info.rack()) {
+            spec(g, UiKit.Icon.CHIP, Component.translatable("hypervisorx.ui.spec.cores", info.cores()).getString(), x, y + row++ * 12, w, UiKit.TEXT);
+            spec(g, UiKit.Icon.MEMORY, Component.translatable("hypervisorx.ui.spec.ram", info.ramMb() / 1024).getString(), x, y + row++ * 12, w, UiKit.TEXT);
+            spec(g, UiKit.Icon.DRIVE, info.diskGb() + " GB", x, y + row++ * 12, w, UiKit.TEXT);
+            spec(g, UiKit.Icon.SERVER, Component.translatable("hypervisorx.ui.pool_free", info.poolCoresFree(), info.poolRamFree() / 1024,
+                    info.poolDiskFree()).getString(), x, y + row++ * 12, w, UiKit.ACCENT_2);
+        } else {
+            spec(g, UiKit.Icon.CHIP, Component.translatable("hypervisorx.ui.spec.cores", info.cores()).getString(), x, y + row++ * 12, w, UiKit.TEXT);
+            spec(g, UiKit.Icon.MEMORY, Component.translatable("hypervisorx.ui.spec.ram", info.ramMb() / 1024).getString(), x, y + row++ * 12, w, UiKit.TEXT);
+            spec(g, UiKit.Icon.MONITOR, info.width() > 0
+                    ? Component.translatable("hypervisorx.ui.spec.display", info.width(), info.height(), info.displays()).getString()
+                    : Component.translatable("hypervisorx.ui.spec.nodisplay").getString(), x, y + row++ * 12, w, info.width() > 0 ? UiKit.TEXT : UiKit.WARN);
+            spec(g, UiKit.Icon.DRIVE, info.diskGb() > 0 ? HardwareItem.formatCapacity(info.diskGb()) + (info.nvme() ? " NVMe" : "")
+                    : Component.translatable("hypervisorx.ui.spec.nodisk").getString(), x, y + row++ * 12, w, info.diskGb() > 0 ? UiKit.TEXT : UiKit.WARN);
+            String extras = ((info.gpio() ? "GPIO " : "") + (info.wifi() ? "Wi-Fi" : "")).trim();
+            if (!extras.isEmpty()) spec(g, info.wifi() ? UiKit.Icon.WIFI : UiKit.Icon.CHIP, extras, x, y + row++ * 12, w, UiKit.ACCENT_2);
+        }
+        int py = topPos + 37 + ((menu.form().slotCount() + ComputerMenu.PART_COLS - 1) / ComputerMenu.PART_COLS) * ComputerMenu.PART_SPACING_Y + 2;
+        int px = leftPos + 12;
+        for (Component p : info.problems()) {
+            if (py > topPos + 118) break;
+            UiKit.icon(g, UiKit.Icon.WARN, px, py - 2, UiKit.WARN);
+            py += 7 * UiKit.paragraph(g, font, p.getString(), px + 14, py, 148, 2, UiKit.WARN, 0.75f) + 3;
+        }
+    }
+
+    private void spec(GuiGraphics g, UiKit.Icon icon, String text, int x, int y, int w, int color) {
+        UiKit.icon(g, icon, x, y - 2, UiKit.DIM);
+        UiKit.textFit(g, font, text, x + 15, y + 1, w - 2, color, 0.75f);
+    }
+
+    private void renderStatus(GuiGraphics g, int x, int y, int w, int bottom) {
+        S2C.VmSlotInfo v = current();
+        String state = stateOf(v);
+        int color = stateColor(state);
+        UiKit.dot(g, x, y + 1, color);
+        String head = Component.translatable("hypervisorx.state." + state.toLowerCase(Locale.ROOT)).getString()
+                + (v != null && !v.name().isEmpty() ? "  \u00b7  " + v.name() : "");
+        UiKit.textFit(g, font, head, x + 9, y, w - 9, color, 1f);
+        String msg = v == null ? "" : v.message();
+        if (msg.equalsIgnoreCase(state) || msg.equalsIgnoreCase(Component.translatable("hypervisorx.state." + state.toLowerCase(Locale.ROOT)).getString())) msg = "";
+        if (!msg.isEmpty() && bottom - (y + 11) >= 7) {
+            int lines = Math.max(1, (bottom - (y + 11)) / 7);
+            UiKit.paragraph(g, font, msg, x, y + 11, w, lines, UiKit.MUTED, 0.75f);
         }
     }
 
     @Override
     protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {
-        g.drawString(font, title, 6, 5, UiKit.TEXT, false);
-        g.drawString(font, playerInventoryTitle, ComputerMenu.INV_X, inventoryLabelY, UiKit.MUTED, false);
-        g.drawString(font, Component.translatable("hypervisorx.ui.system"), RIGHT_X, 5, UiKit.ACCENT, false);
+        // nothing here, window chrome and section captions get drawn in renderBg
     }
 
     @Override

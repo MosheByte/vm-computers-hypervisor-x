@@ -20,13 +20,13 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 
 /** PC assembly: typed part slots + player inventory. Also keeps sending host info to the screen. */
 public class ComputerMenu extends AbstractContainerMenu {
-    public static final int PART_X = 10;
-    public static final int PART_Y = 26;
+    public static final int PART_X = 14;
+    public static final int PART_Y = 37;
     public static final int PART_COLS = 4;
-    public static final int PART_SPACING_X = 22;
-    public static final int PART_SPACING_Y = 22;
-    public static final int INV_X = 10;
-    public static final int INV_Y = 144;
+    public static final int PART_SPACING_X = 21;
+    public static final int PART_SPACING_Y = 21;
+    public static final int INV_X = 11;
+    public static final int INV_Y = 145;
 
     private final BlockPos pos;
     private final FormFactor form;

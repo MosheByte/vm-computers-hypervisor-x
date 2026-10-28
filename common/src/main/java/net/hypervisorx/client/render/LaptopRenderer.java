@@ -26,12 +26,12 @@ public class LaptopRenderer implements BlockEntityRenderer<LaptopBlockEntity> {
         UUID vm = be.remoteTarget() != null ? be.remoteTarget() : be.vmId(0);
         pose.pushPose();
         ScreenDraw.faceNorth(pose, facing);
-        pose.rotateAround(Axis.XP.rotationDegrees(LID_ANGLE), 8 * PX, 1 * PX, 12.5f * PX);
+        pose.rotateAround(Axis.XP.rotationDegrees(LID_ANGLE), 8 * PX, 1 * PX, 12.4f * PX);
         if (vm == null) {
-            ScreenDraw.quad(buffers.getBuffer(HvxRenderTypes.screen(ScreenDraw.WHITE)), pose.last().pose(), 13.25f * PX, 1.6f * PX,
-                    2.75f * PX, 9.4f * PX, 11.5f * PX - 0.002f, 0f, 0f, 1f, 1f, 0xFF06080B);
+            ScreenDraw.quad(buffers.getBuffer(HvxRenderTypes.screen(ScreenDraw.WHITE)), pose.last().pose(), 13.5f * PX, 1.6f * PX,
+                    2.5f * PX, 9.3f * PX, 11.9f * PX - 0.002f, 0f, 0f, 1f, 1f, 0xFF06080B);
         } else {
-            ScreenDraw.screen(pose, buffers, vm, be.getBlockPos(), 13.25f * PX, 1.6f * PX, 2.75f * PX, 9.4f * PX, 11.5f * PX - 0.002f, 0f, 1f);
+            ScreenDraw.screen(pose, buffers, vm, be.getBlockPos(), 13.5f * PX, 1.6f * PX, 2.5f * PX, 9.3f * PX, 11.9f * PX - 0.002f, 0f, 1f);
         }
         pose.popPose();
     }

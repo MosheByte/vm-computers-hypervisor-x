@@ -52,7 +52,7 @@ final class VmwareInstance implements VmInstance {
         rfb = new RfbClient("127.0.0.1", vncPort, password, framebuffer, 60, new RfbClient.Listener() {
             @Override
             public void connected(String desktopName, int width, int height) {
-                setState(State.RUNNING, "Running " + width + "x" + height + (spec.audio() ? " - guest audio plays on the host speakers" : ""));
+                setState(State.RUNNING, spec.audio() ? "Guest audio plays on the host speakers" : "");
             }
 
             @Override

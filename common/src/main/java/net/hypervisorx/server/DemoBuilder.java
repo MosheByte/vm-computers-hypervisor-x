@@ -28,6 +28,8 @@ import net.minecraft.world.level.block.state.BlockState;
 public final class DemoBuilder {
     /** Where the last demo PC went (the dev autotest reads it). */
     public static volatile BlockPos lastPc;
+    public static volatile BlockPos lastTower;
+    public static volatile BlockPos lastCurved;
 
     private DemoBuilder() {
     }
@@ -73,6 +75,7 @@ public final class DemoBuilder {
 
         // RGB tower + curved ultrawide showing the same desktop
         BlockPos tower = base.relative(right, 3);
+        lastTower = tower;
         place(level, tower, HvxBlocks.GAMING_TOWER.get(), facing);
         ComputerBlockEntity gaming = (ComputerBlockEntity) level.getBlockEntity(tower);
         gaming.setOwner(player.getUUID(), player.getGameProfile().getName());
@@ -80,6 +83,7 @@ public final class DemoBuilder {
                 HvxItems.RAM_16.get().getDefaultInstance(), HvxItems.GPU_GX.get().getDefaultInstance(),
                 HvxItems.NVME.get().getDefaultInstance());
         BlockPos curved = base.relative(right, 5);
+        lastCurved = curved;
         place(level, curved, HvxBlocks.CURVED_MONITOR.get(), facing);
         link(level, curved, pc);
 
