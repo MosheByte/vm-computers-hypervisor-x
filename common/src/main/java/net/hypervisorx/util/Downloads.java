@@ -43,7 +43,7 @@ public final class Downloads {
         Files.createDirectories(target.toAbsolutePath().getParent());
         Path part = target.resolveSibling(target.getFileName() + ".part");
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
-                .header("User-Agent", "HyperVisorX/1.0 (Minecraft mod; +https://github.com/MosheBarami/vm-computers-hypervisor-x)")
+                .header("User-Agent", "HyperVisorX/1.0 (Minecraft mod; +https://github.com/MosheByte/vm-computers-hypervisor-x)")
                 .timeout(Duration.ofMinutes(5))
                 .GET().build();
         HttpResponse<InputStream> response;

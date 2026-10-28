@@ -9,7 +9,7 @@ VMware · VirtualBox · QEMU/KVM/WHPX/HVF · zero-install embedded Linux · Mine
 </p>
 
 <p align="center">
-<a href="https://github.com/MosheBarami/vm-computers-hypervisor-x/actions"><img src="https://github.com/MosheBarami/vm-computers-hypervisor-x/actions/workflows/build_and_release.yml/badge.svg" alt="build"></a>
+<a href="https://github.com/MosheByte/vm-computers-hypervisor-x/actions"><img src="https://github.com/MosheByte/vm-computers-hypervisor-x/actions/workflows/build_and_release.yml/badge.svg" alt="build"></a>
 <img src="https://img.shields.io/badge/Minecraft-1.21.1-62B47A" alt="mc">
 <img src="https://img.shields.io/badge/loader-NeoForge%20%7C%20Fabric-5A3E9A" alt="loaders">
 <img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="license">
@@ -124,7 +124,7 @@ Sneak-use the tablet or click *Library* in a computer:
 
 1. Install **Minecraft 1.21.1** with **NeoForge 21.1.x** or **Fabric Loader ≥ 0.16 + Fabric API**.
 2. Download `hypervisorx-neoforge-1.21.1-1.2.0.jar` *or* `hypervisorx-fabric-1.21.1-1.2.0.jar`
-   from [Releases](https://github.com/MosheBarami/vm-computers-hypervisor-x/releases) and put it in `.minecraft/mods`.
+   from [Releases](https://github.com/MosheByte/vm-computers-hypervisor-x/releases) and put it in `.minecraft/mods`.
 3. Start a world, open the creative tab **HyperVisor X** (or craft the OrbitTech tablet),
    or simply run **`/hvx demo`** to get a complete working showroom.
 

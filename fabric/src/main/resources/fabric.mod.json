@@ -11,9 +11,9 @@
     "Louis Grunenwald (Delta2Force) - original VM Computers"
   ],
   "contact": {
-    "homepage": "https://github.com/MosheBarami/vm-computers-hypervisor-x",
-    "sources": "https://github.com/MosheBarami/vm-computers-hypervisor-x",
-    "issues": "https://github.com/MosheBarami/vm-computers-hypervisor-x/issues"
+    "homepage": "https://github.com/MosheByte/vm-computers-hypervisor-x",
+    "sources": "https://github.com/MosheByte/vm-computers-hypervisor-x",
+    "issues": "https://github.com/MosheByte/vm-computers-hypervisor-x/issues"
   },
   "license": "${license}",
   "icon": "hypervisorx_logo.png",
