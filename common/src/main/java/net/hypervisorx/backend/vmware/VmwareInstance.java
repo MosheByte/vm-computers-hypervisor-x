@@ -48,6 +48,14 @@ final class VmwareInstance implements VmInstance {
         this.framebuffer = new Framebuffer(spec.width(), spec.height());
     }
 
+    private volatile int bootKeyPresses;
+    private volatile java.util.concurrent.ScheduledFuture<?> bootKeyTask;
+
+    /** First boot of a fresh Windows install, so answer the DVD boot prompt. */
+    void pressKeyToBootDvd() {
+        bootKeyPresses = 45;
+    }
+
     void connect() throws IOException {
         rfb = new RfbClient("127.0.0.1", vncPort, password, framebuffer, 60, new RfbClient.Listener() {
             @Override
@@ -61,6 +69,21 @@ final class VmwareInstance implements VmInstance {
             }
         });
         rfb.connect(45_000);
+        if (bootKeyPresses > 0) {
+            // Windows install media waits ~5 s on "Press any key to boot from CD or DVD" and nobody's at the keyboard
+            // during an unattended install, so tap Space for the first 45 seconds (does nothing once setup loads)
+            bootKeyTask = MONITOR.scheduleAtFixedRate(() -> {
+                if (--bootKeyPresses < 0 || rfb == null) {
+                    if (bootKeyTask != null) bootKeyTask.cancel(false);
+                    return;
+                }
+                // VMware ignores a press if the release comes in the same instant, so hold it ~80 ms
+                rfb.sendKeysym(0x20, true);
+                MONITOR.schedule(() -> {
+                    if (rfb != null) rfb.sendKeysym(0x20, false);
+                }, 80, TimeUnit.MILLISECONDS);
+            }, 500, 1000, TimeUnit.MILLISECONDS);
+        }
         if (pipe != null) serial = new PipeSerialLink(pipe);
         monitorTask = MONITOR.scheduleWithFixedDelay(this::checkRunning, 5, 5, TimeUnit.SECONDS);
     }

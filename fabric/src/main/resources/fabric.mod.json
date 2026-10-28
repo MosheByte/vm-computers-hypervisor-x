@@ -29,6 +29,9 @@
       "net.hypervisorx.fabric.client.HvxModMenu"
     ]
   },
+  "mixins": [
+    "${mod_id}.mixins.json"
+  ],
   "depends": {
     "fabricloader": ">=0.16.0",
     "fabric-api": ">=0.100.0",

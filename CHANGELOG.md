@@ -1,3 +1,29 @@
+# HyperVisor X — 1.3.0
+
+## Sitting at the computer
+- Using a screen no longer covers the whole window by default: the camera glides in front of the
+  monitor and stays locked there while the world keeps rendering around it. The mouse is cast onto
+  the in-world screen (flat, curved, spanned, multi-panel and video-wall screens), the HUD and hand
+  are hidden while seated, and Right Ctrl glides the camera back. The full-window view is one
+  click away in the top bar and can be made the default in Settings.
+
+## Motherboard assembly
+- New *Motherboard* page in the PC screen: the board as a blocky 3D model in Minecraft-style pixel
+  art (drag to turn, wheel to zoom), with memory, graphics and expansion cards standing in their
+  slots, and real sockets
+  (CPU, four DIMMs, PCIe x16, two M.2, two PCIe x1 and the rear USB ports on the tower; Socket 7,
+  DIMMs, AGP, IDE, PCI and USB on the retro PC). Click a socket to install, swap or remove a part.
+- Animations per part (CPU load plate and lever, memory latches, cards seating, M.2 screw, USB plug),
+  ten new synthesised sound effects, spark bursts, spinning GPU fans, RGB zones, Q-LEDs for missing
+  parts and a POST beep when the build can boot.
+## Virtual machines
+- Windows 10/11 VMs on VMware install unattended (answer disc, local "Player" account, VMware
+  Tools), and the DVD's "Press any key to boot" prompt is answered automatically.
+- VMware: the VNC port is checked for any listener before use, a taken port is swapped for another
+  one, and a VM whose display does not answer is stopped instead of left running in the background.
+- VirtualBox: a start failure caused by a program leaking millions of handles is named as such.
+- VMware VMs run without 3D acceleration: with it, VMware's VNC display stays black or freezes.
+
 # HyperVisor X — 1.2.1
 
 - VMware: VMs no longer fail to start with "The operation was canceled" when the RAM left in the

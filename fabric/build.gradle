@@ -17,6 +17,9 @@ dependencies {
 }
 
 loom {
+    mixin {
+        defaultRefmapName.set("${mod_id}.refmap.json")
+    }
     def aw = project(':common').file("src/main/resources/${mod_id}.accesswidener")
     if (aw.exists()) {
         accessWidenerPath.set(aw)
@@ -31,6 +34,11 @@ loom {
             property('hvx.autotest', (project.findProperty('hvx.autotest') ?: 'false').toString())
             property('hvx.demoworld', (project.findProperty('hvx.demoworld') ?: 'false').toString())
             property('hvx.vmwaretest', (project.findProperty('hvx.vmwaretest') ?: 'false').toString())
+            // -Phvx.backendtest=virtualbox|qemu|hostcapture runs the same end-to-end test on another engine
+            property('hvx.backendtest', (project.findProperty('hvx.backendtest') ?: '').toString())
+            // -Phvx.testimage=<iso> -Phvx.testos=WINDOWS_11 boots that image instead of Tiny Core
+            property('hvx.testimage', (project.findProperty('hvx.testimage') ?: '').toString())
+            property('hvx.testos', (project.findProperty('hvx.testos') ?: '').toString())
         }
         server {
             server()

@@ -146,7 +146,9 @@ public final class Processes {
     /** a free localhost TCP port in {@code [from, to]} that no other VM in this JVM already has. */
     public static synchronized int allocatePort(int from, int to) throws IOException {
         for (int port = from; port <= to; port++) {
-            if (RESERVED_PORTS.contains(port)) continue;
+            // on Windows a bind test isn't enough: a listener with SO_REUSEADDR (VMware's VNC server, for one)
+            // still lets us bind, so also check if something answers on the port
+            if (RESERVED_PORTS.contains(port) || listening(port)) continue;
             try (ServerSocket s = new ServerSocket(port, 1, InetAddress.getLoopbackAddress())) {
                 s.setReuseAddress(false);
                 RESERVED_PORTS.add(port);
@@ -156,6 +158,16 @@ public final class Processes {
             }
         }
         throw new IOException("No free TCP port between " + from + " and " + to);
+    }
+
+    /** true if something's accepting connections on this loopback port. */
+    public static boolean listening(int port) {
+        try (java.net.Socket s = new java.net.Socket()) {
+            s.connect(new java.net.InetSocketAddress(InetAddress.getLoopbackAddress(), port), 150);
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     /** a resumed VM already has this port, so new allocations skip it. */

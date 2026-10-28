@@ -5,6 +5,7 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
 import net.hypervisorx.HyperVisorX;
 import net.hypervisorx.client.ClientVmCache;
+import net.hypervisorx.client.ScreenHits;
 import net.hypervisorx.client.ScreenTracker;
 import net.hypervisorx.network.S2C;
 import net.minecraft.client.Minecraft;
@@ -69,9 +70,12 @@ public final class ScreenDraw {
         S2C.VmStatus status = ClientVmCache.get(vm);
         boolean running = status != null && (status.state().equals("RUNNING") || status.state().equals("STARTING") || status.state().equals("STOPPING"));
         ScreenTexture tex = running && ScreenTracker.withinRenderDistance(pos) ? texture(vm, pos) : null;
+        // the in-world view needs the panel's position even while it's black or booting
+        if (tex == null || !tex.hasContent()) ScreenHits.add(vm, pos, m, xLeft, yBottom, xRight, yTop, z, u0, u1);
 
         if (tex != null && tex.hasContent() && !letterbox) {
             quad(buffers.getBuffer(HvxRenderTypes.screen(tex.location())), m, xLeft, yBottom, xRight, yTop, z, u0, 0f, u1, 1f, 0xFFFFFFFF);
+            ScreenHits.add(vm, pos, m, xLeft, yBottom, xRight, yTop, z, u0, u1);
         } else if (tex != null && tex.hasContent()) {
             // letterbox so the guest keeps its aspect ratio
             float texAspect = (tex.width() * (u1 - u0)) / Math.max(1f, tex.height());
@@ -88,6 +92,7 @@ public final class ScreenDraw {
             }
             quad(buffers.getBuffer(HvxRenderTypes.screen(tex.location())), m,
                     cx + dir * w / 2f, cy - h / 2f, cx - dir * w / 2f, cy + h / 2f, z, u0, 0f, u1, 1f, 0xFFFFFFFF);
+            ScreenHits.add(vm, pos, m, cx + dir * w / 2f, cy - h / 2f, cx - dir * w / 2f, cy + h / 2f, z, u0, u1);
         } else if (running && !ScreenTracker.withinRenderDistance(pos) && ScreenTextureManager.peek(vm) != null) {
             // past streaming distance: show the last picture dimmed instead of the boot splash
             ScreenTexture last = ScreenTextureManager.peek(vm);

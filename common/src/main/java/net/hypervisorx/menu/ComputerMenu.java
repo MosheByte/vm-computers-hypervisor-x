@@ -33,6 +33,8 @@ public class ComputerMenu extends AbstractContainerMenu {
     private final Container parts;
     private final Player player;
     private int infoTimer;
+    /** Client only: motherboard page is open, so the slot grid and inventory are hidden. */
+    public boolean boardView;
 
     /** Client-side constructor, slots mirror the server. */
     public static ComputerMenu client(int id, Inventory inv, BlockPos pos) {
@@ -50,14 +52,14 @@ public class ComputerMenu extends AbstractContainerMenu {
         for (int i = 0; i < form.slotCount(); i++) {
             int col = i % PART_COLS;
             int row = i / PART_COLS;
-            addSlot(new PartSlot(parts, i, PART_X + col * PART_SPACING_X, PART_Y + row * PART_SPACING_Y, form.slots().get(i)));
+            addSlot(new PartSlot(parts, i, PART_X + col * PART_SPACING_X, PART_Y + row * PART_SPACING_Y, form.slots().get(i), () -> !boardView));
         }
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
-                addSlot(new Slot(inv, col + row * 9 + 9, INV_X + col * 18, INV_Y + row * 18));
+                addSlot(new GridSlot(inv, col + row * 9 + 9, INV_X + col * 18, INV_Y + row * 18));
             }
         }
-        for (int col = 0; col < 9; col++) addSlot(new Slot(inv, col, INV_X + col * 18, INV_Y + 58));
+        for (int col = 0; col < 9; col++) addSlot(new GridSlot(inv, col, INV_X + col * 18, INV_Y + 58));
     }
 
     public BlockPos pos() {
@@ -68,12 +70,31 @@ public class ComputerMenu extends AbstractContainerMenu {
         return form;
     }
 
+    /** Inventory slot that hides while the motherboard page is up. */
+    private final class GridSlot extends Slot {
+        GridSlot(Container container, int index, int x, int y) {
+            super(container, index, x, y);
+        }
+
+        @Override
+        public boolean isActive() {
+            return !boardView;
+        }
+    }
+
     public static final class PartSlot extends Slot {
         private final ComponentType type;
+        private final java.util.function.BooleanSupplier active;
 
-        PartSlot(Container container, int index, int x, int y, ComponentType type) {
+        PartSlot(Container container, int index, int x, int y, ComponentType type, java.util.function.BooleanSupplier active) {
             super(container, index, x, y);
             this.type = type;
+            this.active = active;
+        }
+
+        @Override
+        public boolean isActive() {
+            return active.getAsBoolean();
         }
 
         public ComponentType type() {

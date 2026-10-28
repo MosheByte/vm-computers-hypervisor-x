@@ -84,5 +84,95 @@
         "type": "file"
       }
     ]
+  },
+  "assembly_cpu_drop": {
+    "subtitle": "subtitles.hypervisorx.assembly_cpu_drop",
+    "sounds": [
+      {
+        "name": "hypervisorx:assembly/cpu_drop",
+        "volume": 1.0
+      }
+    ]
+  },
+  "assembly_cpu_lever": {
+    "subtitle": "subtitles.hypervisorx.assembly_cpu_lever",
+    "sounds": [
+      {
+        "name": "hypervisorx:assembly/cpu_lever",
+        "volume": 1.0
+      }
+    ]
+  },
+  "assembly_ram_click": {
+    "subtitle": "subtitles.hypervisorx.assembly_ram_click",
+    "sounds": [
+      {
+        "name": "hypervisorx:assembly/ram_click",
+        "volume": 1.0
+      }
+    ]
+  },
+  "assembly_gpu_seat": {
+    "subtitle": "subtitles.hypervisorx.assembly_gpu_seat",
+    "sounds": [
+      {
+        "name": "hypervisorx:assembly/gpu_seat",
+        "volume": 1.0
+      }
+    ]
+  },
+  "assembly_screw": {
+    "subtitle": "subtitles.hypervisorx.assembly_screw",
+    "sounds": [
+      {
+        "name": "hypervisorx:assembly/screw",
+        "volume": 1.0
+      }
+    ]
+  },
+  "assembly_card_seat": {
+    "subtitle": "subtitles.hypervisorx.assembly_card_seat",
+    "sounds": [
+      {
+        "name": "hypervisorx:assembly/card_seat",
+        "volume": 1.0
+      }
+    ]
+  },
+  "assembly_usb_plug": {
+    "subtitle": "subtitles.hypervisorx.assembly_usb_plug",
+    "sounds": [
+      {
+        "name": "hypervisorx:assembly/usb_plug",
+        "volume": 1.0
+      }
+    ]
+  },
+  "assembly_part_remove": {
+    "subtitle": "subtitles.hypervisorx.assembly_part_remove",
+    "sounds": [
+      {
+        "name": "hypervisorx:assembly/part_remove",
+        "volume": 1.0
+      }
+    ]
+  },
+  "assembly_post_beep": {
+    "subtitle": "subtitles.hypervisorx.assembly_post_beep",
+    "sounds": [
+      {
+        "name": "hypervisorx:assembly/post_beep",
+        "volume": 1.0
+      }
+    ]
+  },
+  "assembly_part_pick": {
+    "subtitle": "subtitles.hypervisorx.assembly_part_pick",
+    "sounds": [
+      {
+        "name": "hypervisorx:assembly/part_pick",
+        "volume": 1.0
+      }
+    ]
   }
 }

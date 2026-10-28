@@ -128,6 +128,12 @@ public final class VmwareBackend implements HypervisorBackend {
                     throw new BackendException("VMware can only boot .vmdk disks; use QEMU for ." + spec.existingDiskFormat() + " images.");
                 }
                 disk = spec.existingDisk();
+            }
+            // brand-new Windows VM installs itself, answer disc on first boot only
+            boolean freshWindows = spec.existingDisk() == null && spec.diskGb() > 0 && !Files.exists(disk)
+                    && spec.isoImage() != null && net.hypervisorx.backend.WindowsUnattend.applies(spec.guestOs());
+            if (spec.existingDisk() != null) {
+                // already picked above
             } else if (spec.diskGb() > 0 && !Files.exists(disk)) {
                 Processes.Result r = Processes.run(300, inst.vdiskmanager().toString(), "-c", "-s", spec.diskGb() + "GB", "-a", "lsilogic", "-t", "0", disk.toString());
                 if (!r.ok()) throw new BackendException("vmware-vdiskmanager failed: " + r.output());
@@ -145,20 +151,60 @@ public final class VmwareBackend implements HypervisorBackend {
                 vncPort = Processes.allocatePort(5970, 6099);
                 password = randomPassword();
                 writeVmx(spec, vmxPath, disk, vncPort, password, pipe);
+                if (net.hypervisorx.backend.WindowsUnattend.applies(spec.guestOs())) {
+                    Path dir = inst.vmrun().getParent();
+                    Path answers = freshWindows ? net.hypervisorx.backend.WindowsUnattend.buildIso(spec, dir.resolve(Processes.exe("mkisofs"))) : null;
+                    Path tools = dir.resolve("windows.iso");
+                    VmxFile vmx = VmxFile.load(vmxPath);
+                    int port = 2 + (int) spec.usbDrives().stream().filter(Files::isRegularFile).count();
+                    for (Path cd : new Path[]{answers, Files.isRegularFile(tools) ? tools : null}) {
+                        if (cd == null || port >= 6) continue;
+                        vmx.set("sata0:" + port + ".present", true);
+                        vmx.set("sata0:" + port + ".deviceType", "cdrom-image");
+                        vmx.set("sata0:" + port + ".fileName", cd.toAbsolutePath().toString());
+                        vmx.set("sata0:" + port + ".startConnected", true);
+                        port++;
+                    }
+                    // short firmware pause so the display's connected before Windows asks for a key to boot the DVD
+                    if (freshWindows) vmx.set("bios.bootDelay", 6000);
+                    else vmx.remove("bios.bootDelay");
+                    vmx.save(vmxPath);
+                    if (answers != null) net.hypervisorx.HyperVisorX.LOG.info("Windows VM {}: unattended setup disc attached", spec.id());
+                }
             }
 
-            Processes.Result start = Processes.run(240, inst.vmrun().toString(), "-T", inst.hostType(), "start", vmxPath.toString(), "nogui");
-            if (!start.ok()) {
-                // vmrun only says "The operation was canceled"; the real reason is the last error in vmware.log
-                String why = lastVmwareError(vmxPath.getParent().resolve("vmware.log"));
-                throw new BackendException("vmrun start failed: " + (why != null ? why : start.output().strip()));
+            Path log = vmxPath.getParent().resolve("vmware.log");
+            for (int attempt = 0; ; attempt++) {
+                Processes.Result start = Processes.run(240, inst.vmrun().toString(), "-T", inst.hostType(), "start", vmxPath.toString(), "nogui");
+                if (!start.ok()) {
+                    // vmrun just says "The operation was canceled", the real reason is the last error in vmware.log
+                    String why = lastVmwareError(log);
+                    throw new BackendException("vmrun start failed: " + (why != null ? why : start.output().strip()));
+                }
+                if (awaitVnc(log, vncPort) || attempt >= 2 || isSuspended(spec.vmDir())) break;
+                // something grabbed the VNC port between our check and VMware starting, pick a new one
+                net.hypervisorx.HyperVisorX.LOG.warn("VMware could not open VNC port {} for {}; retrying on another port", vncPort, spec.id());
+                Processes.run(120, inst.vmrun().toString(), "-T", inst.hostType(), "stop", vmxPath.toString(), "hard");
+                Processes.releasePort(vncPort);
+                vncPort = Processes.allocatePort(5970, 6099);
+                VmxFile vmx = VmxFile.load(vmxPath);
+                vmx.set("RemoteDisplay.vnc.port", vncPort);
+                vmx.save(vmxPath);
             }
             VmwareInstance instance = new VmwareInstance(spec, inst, vmxPath, vncPort, password, spec.gpio() ? pipe : null);
-            instance.connect();
+            if (freshWindows) instance.pressKeyToBootDvd();
+            try {
+                instance.connect();
+            } catch (IOException e) {
+                // don't leave a running VM behind that nobody can see or stop
+                Processes.run(120, inst.vmrun().toString(), "-T", inst.hostType(), "stop", vmxPath.toString(), "hard");
+                String reason = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+                throw new BackendException("VMware started, but its display (VNC port " + vncPort + ") did not answer: " + reason, e);
+            }
             return instance;
         } catch (IOException e) {
             if (vncPort > 0) Processes.releasePort(vncPort);
-            throw new BackendException("VMware failed to start: " + e.getMessage(), e);
+            throw new BackendException("VMware failed to start: " + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()), e);
         } catch (BackendException e) {
             if (vncPort > 0) Processes.releasePort(vncPort);
             throw e;
@@ -285,7 +331,11 @@ public final class VmwareBackend implements HypervisorBackend {
         vmx.set("svga.vramSize", vram);
         vmx.set("svga.maxWidth", spec.width());
         vmx.set("svga.maxHeight", spec.height());
+        // no 3D accel: VMware's VNC server only sees the software-rendered screen. with mks.enable3d on, the
+        // picture we stream stays black or freezes on the last frame
         vmx.set("mks.enable3d", false);
+        vmx.remove("svga.graphicsMemoryKB");
+        vmx.remove("vmotion.svga.graphicsMemoryKB");
         vmx.set("RemoteDisplay.vnc.enabled", true);
         vmx.set("RemoteDisplay.vnc.port", vncPort);
         vmx.set("RemoteDisplay.vnc.password", password);
@@ -316,6 +366,29 @@ public final class VmwareBackend implements HypervisorBackend {
     }
 
     /** First "[msg.*] text" line after the last "Msg_Post: Error" in a VMware log, or null. */
+    /**
+     * Waits up to 10 s for VMware's VNC server to start listening. False if vmware.log says it
+     * couldn't open the port.
+     */
+    private static boolean awaitVnc(Path log, int port) {
+        long until = System.currentTimeMillis() + 10_000;
+        while (System.currentTimeMillis() < until) {
+            if (Processes.listening(port)) return true;
+            try {
+                if (Files.isRegularFile(log) && Files.readString(log, java.nio.charset.StandardCharsets.ISO_8859_1).contains("Failed to start VNC server")) {
+                    return false;
+                }
+                Thread.sleep(250);
+            } catch (java.io.IOException | RuntimeException ignored) {
+                // log's still being written, try again
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return true;
+            }
+        }
+        return true;
+    }
+
     static String lastVmwareError(Path log) {
         try {
             if (!Files.isRegularFile(log)) return null;
