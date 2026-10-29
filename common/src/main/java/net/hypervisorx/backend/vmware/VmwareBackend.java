@@ -351,6 +351,9 @@ public final class VmwareBackend implements HypervisorBackend {
         // positions the VNC server sends to the PS/2 mouse, so the cursor would just sit where it started
         vmx.set("mouse.vusb.enable", true);
         vmx.set("mouse.vusb.useBasicMouse", false);
+        // games in the VM (captured mouse, hidden cursor) only get motion in VMware's gaming mouse mode,
+        // the absolute pointer alone never reaches them over VNC
+        vmx.set("mks.gamingMouse.policy", "gaming");
         vmx.set("sound.present", spec.audio());
         vmx.set("sound.virtualDev", legacy ? "sb16" : "hdaudio");
         vmx.set("sound.fileName", "-1");

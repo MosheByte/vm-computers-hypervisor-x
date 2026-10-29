@@ -16,6 +16,7 @@ public final class GuestCursor {
     private int hotY;
     private int[] argb = new int[0];
     private boolean visible = true;
+    private boolean absolute = true;
     private int shapeVersion;
     private int warpX;
     private int warpY;
@@ -38,6 +39,19 @@ public final class GuestCursor {
         if (this.visible == visible) return;
         this.visible = visible;
         shapeVersion++;
+    }
+
+    /** Does the guest want pointer positions (absolute) or motion (relative)? The display server tells us. */
+    public synchronized void setAbsolute(boolean absolute) {
+        this.absolute = absolute;
+    }
+
+    public synchronized boolean absolute() {
+        return absolute;
+    }
+
+    public synchronized boolean visible() {
+        return visible;
     }
 
     /** Guest moved its own cursor (games keep it centred), so viewers follow. */

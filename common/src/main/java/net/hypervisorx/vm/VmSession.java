@@ -36,23 +36,121 @@ public final class VmSession {
     public volatile int ramCommittedMb;
     /** players allowed to send input. server thread refreshes it every second, network threads read it. */
     public final java.util.Set<UUID> controllers = ConcurrentHashMap.newKeySet();
-    /** The guest pointer a captured mouse moves (network thread). */
+    /** paces in-game mouse motion for all VMs (one small step every {@link #STEP_MS} ms). */
+    private static final java.util.concurrent.ScheduledExecutorService PACER = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "HyperVisorX-Pointer");
+        t.setDaemon(true);
+        return t;
+    });
+    /**
+     * Gotcha: a game in the guest (VMware, cursor hidden) turns by the distance between pointer positions, but
+     * only for small steps. ~35px or more at once counts as a jump and gets ignored, and steps sent faster than
+     * the guest samples the mouse get merged into one. So we send steps of at most this many px, {@link #STEP_MS}
+     * apart, and near an edge we jump back to the middle (big, so the game ignores it).
+     */
+    private static final int GAME_STEP = 24;
+    private static final long STEP_MS = 10;
+    private static final int EDGE = 300;
+
+    /** guest pointer that a captured mouse drives (network thread and pacer both touch it). */
     private int pointerX = -1;
     private int pointerY = -1;
     private int pointerWarp;
+    private double gameDx;
+    private double gameDy;
+    private int gameButtons;
+    private int sentButtons;
+    private int lastSentX = -1;
+    private int lastSentY = -1;
+    private java.util.concurrent.ScheduledFuture<?> pacer;
+    private net.hypervisorx.backend.VmInstance pacedInstance;
 
     /** player pointed right at this spot (free mouse), captured motion picks up from here. */
     public synchronized void pointerAt(int x, int y) {
         pointerX = x;
         pointerY = y;
+        lastSentX = x;
+        lastSentY = y;
     }
 
     /**
-     * Moves the guest pointer by a captured mouse's motion and returns where it is now. When the guest moved
-     * its own cursor (a game re-centring it, reported by VMware), motion continues from there, so a turn in a
-     * game is never applied twice nor jumps back.
+     * Captured mouse motion, in guest pixels. On the desktop it moves the guest pointer (from wherever the guest
+     * last put it). In a game (guest hides its cursor) it gets paced out in small steps so the game turns by
+     * exactly that much.
      */
-    public synchronized int[] movePointer(net.hypervisorx.backend.VmInstance inst, int dx, int dy) {
+    public synchronized void pointerMotion(net.hypervisorx.backend.VmInstance inst, int dx, int dy, int buttons) {
+        if (gameMode(inst)) {
+            gameDx += dx;
+            gameDy += dy;
+            gameButtons = buttons;
+            if (buttons != sentButtons) {
+                int[] p = current(inst);
+                send(inst, p[0], p[1], buttons);
+            }
+            pacedInstance = inst;
+            if (pacer == null && (gameDx != 0 || gameDy != 0)) {
+                pacer = PACER.scheduleAtFixedRate(this::paceStep, 0, STEP_MS, java.util.concurrent.TimeUnit.MILLISECONDS);
+            }
+            return;
+        }
+        gameDx = 0;
+        gameDy = 0;
+        int[] p = position(inst);
+        int w = inst.framebuffer().width();
+        int h = inst.framebuffer().height();
+        pointerX = Math.max(0, Math.min(w - 1, p[0] + dx));
+        pointerY = Math.max(0, Math.min(h - 1, p[1] + dy));
+        send(inst, pointerX, pointerY, buttons);
+    }
+
+    /** where a captured mouse's wheel notches land: at the pointer, without moving it. */
+    public synchronized int[] wheelAt(net.hypervisorx.backend.VmInstance inst) {
+        return gameMode(inst) ? current(inst) : position(inst);
+    }
+
+    private synchronized void paceStep() {
+        net.hypervisorx.backend.VmInstance inst = pacedInstance;
+        double most = Math.max(Math.abs(gameDx), Math.abs(gameDy));
+        if (inst == null || most < 0.5 || !gameMode(inst)) {
+            gameDx = 0;
+            gameDy = 0;
+            if (pacer != null) pacer.cancel(false);
+            pacer = null;
+            return;
+        }
+        double k = most > GAME_STEP ? GAME_STEP / most : 1;
+        int sx = (int) Math.round(gameDx * k);
+        int sy = (int) Math.round(gameDy * k);
+        int w = inst.framebuffer().width();
+        int h = inst.framebuffer().height();
+        int[] p = current(inst);
+        int x = p[0] + sx;
+        int y = p[1] + sy;
+        if (x < EDGE || x > w - EDGE || y < Math.min(EDGE, h / 4) || y > h - Math.min(EDGE, h / 4)) {
+            // jump back to the middle (game ignores it), the real step goes out next tick
+            send(inst, w / 2, h / 2, gameButtons);
+            return;
+        }
+        send(inst, x, y, gameButtons);
+        gameDx -= sx;
+        gameDy -= sy;
+    }
+
+    private static boolean gameMode(net.hypervisorx.backend.VmInstance inst) {
+        net.hypervisorx.backend.GuestCursor c = inst.cursor();
+        return c != null && c.hasShape() && !c.visible() && c.absolute();
+    }
+
+    /** last position we sent (middle of the screen if nothing yet). */
+    private int[] current(net.hypervisorx.backend.VmInstance inst) {
+        if (lastSentX < 0 || lastSentY < 0) {
+            lastSentX = inst.framebuffer().width() / 2;
+            lastSentY = inst.framebuffer().height() / 2;
+        }
+        return new int[]{lastSentX, lastSentY};
+    }
+
+    private int[] position(net.hypervisorx.backend.VmInstance inst) {
         net.hypervisorx.backend.GuestCursor c = inst.cursor();
         if (c != null && c.warpVersion() != pointerWarp) {
             pointerWarp = c.warpVersion();
@@ -60,15 +158,18 @@ public final class VmSession {
             pointerX = p[0];
             pointerY = p[1];
         }
-        int w = inst.framebuffer().width();
-        int h = inst.framebuffer().height();
         if (pointerX < 0 || pointerY < 0) {
-            pointerX = w / 2;
-            pointerY = h / 2;
+            pointerX = inst.framebuffer().width() / 2;
+            pointerY = inst.framebuffer().height() / 2;
         }
-        pointerX = Math.max(0, Math.min(w - 1, pointerX + dx));
-        pointerY = Math.max(0, Math.min(h - 1, pointerY + dy));
         return new int[]{pointerX, pointerY};
+    }
+
+    private void send(net.hypervisorx.backend.VmInstance inst, int x, int y, int buttons) {
+        inst.pointer(x, y, buttons);
+        lastSentX = x;
+        lastSentY = y;
+        sentButtons = buttons;
     }
 
     /** last cursor shape / forced position sent to viewers (stream pump thread). -1 = resend the shape. */

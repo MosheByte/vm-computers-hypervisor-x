@@ -73,6 +73,7 @@ public final class AutoTest {
     private static final String VIDEO_WORLD = System.getProperty("hvx.videoworld", "").trim();
     private static boolean videoPrepped;
     private static int lookOpenAt = -1000;
+    private static int mouseTestUntil;
     private static int progressShots;
     private static final String CAPTURE_TITLE = "HyperVisor X capture test";
     private static int stage;
@@ -556,8 +557,21 @@ public final class AutoTest {
         }
         if (ticks == lookOpenAt + 110) net.hypervisorx.client.DeskView.zoomBy(1.0);
         if (ticks == lookOpenAt + 150) shot(mc, "hvx-look-zoom.png");
+        // hvx-mouse-test: 40 ticks of captured mouse moving right (10 guest px a tick), same as a real mouse sends it
+        if (mouseTestUntil > ticks) {
+            net.hypervisorx.platform.Services.PLATFORM.sendToServer(new net.hypervisorx.network.C2S.Input(vmwareVm,
+                    net.hypervisorx.network.C2S.Input.POINTER_REL, 10, 0, 0, 0));
+        }
         if (ticks % 10 != 0) return;
         Path dir = mc.gameDirectory.toPath();
+        if (Files.exists(dir.resolve("hvx-mouse-test"))) {
+            try {
+                Files.deleteIfExists(dir.resolve("hvx-mouse-test"));
+            } catch (java.io.IOException ignored) {
+            }
+            mouseTestUntil = ticks + 40;
+            log("mouse test: 400 guest pixels to the right");
+        }
         if (Files.exists(dir.resolve("hvx-look-check"))) {
             try {
                 Files.deleteIfExists(dir.resolve("hvx-look-check"));
