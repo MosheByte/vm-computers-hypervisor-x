@@ -1,3 +1,10 @@
+# HyperVisor X — 1.3.1
+
+- Every in-world screen (monitors, the curved ultrawide, CRT, laptops, monitor arms, video walls) now
+  shows the picture edge to edge: no more black bars beside a desktop whose aspect ratio differs from
+  the panel. *Settings → Display → Screen picture* switches back to keeping the aspect ratio.
+- The curved ultrawide is twice as smooth (64 segments) and its whole surface is live picture.
+
 # HyperVisor X — 1.3.0
 
 ## Sitting at the computer

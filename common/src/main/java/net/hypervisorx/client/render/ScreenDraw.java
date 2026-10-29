@@ -73,7 +73,7 @@ public final class ScreenDraw {
         // the in-world view needs the panel's position even while it's black or booting
         if (tex == null || !tex.hasContent()) ScreenHits.add(vm, pos, m, xLeft, yBottom, xRight, yTop, z, u0, u1);
 
-        if (tex != null && tex.hasContent() && !letterbox) {
+        if (tex != null && tex.hasContent() && (!letterbox || net.hypervisorx.config.HvxClientConfig.get().fillScreens)) {
             quad(buffers.getBuffer(HvxRenderTypes.screen(tex.location())), m, xLeft, yBottom, xRight, yTop, z, u0, 0f, u1, 1f, 0xFFFFFFFF);
             ScreenHits.add(vm, pos, m, xLeft, yBottom, xRight, yTop, z, u0, u1);
         } else if (tex != null && tex.hasContent()) {

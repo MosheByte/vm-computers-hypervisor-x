@@ -48,6 +48,8 @@ public class FocusScreen extends Screen {
     private long lastFrame = System.currentTimeMillis();
     private int pillX, pillW;
     private static final int PILL_H = 22;
+    /** for screen recordings: no toolbar, no hints over the picture */
+    public static boolean cinematic;
     /** in-world view (camera seated at the screen) instead of the full-window picture */
     private boolean world;
     private boolean decided;
@@ -172,7 +174,7 @@ public class FocusScreen extends Screen {
                 return;
             }
             if (!(tex != null && tex.hasContent() && running())) statePanel(g, status, height - 70 - 28);
-            else if (System.currentTimeMillis() - worldSince < 5000) seatedHint(g);
+            else if (!cinematic && System.currentTimeMillis() - worldSince < 5000) seatedHint(g);
         } else if (tex != null && tex.hasContent() && running()) {
             float aspect = tex.width() / (float) tex.height();
             float w = width;
@@ -231,7 +233,7 @@ public class FocusScreen extends Screen {
         long now = System.currentTimeMillis();
         float dt = Math.min(0.1f, (now - lastFrame) / 1000f);
         lastFrame = now;
-        slide = Mth.clamp(slide + (overlayVisible() ? 1 : -1) * dt / 0.15f, 0f, 1f);
+        slide = cinematic ? 0f : Mth.clamp(slide + (overlayVisible() ? 1 : -1) * dt / 0.15f, 0f, 1f);
         if (slide > 0f) {
             String name = status == null ? "" : status.name();
             String info = status == null ? "" : String.format("%s  %dx%d  %.0f fps  [%s]", status.state(), status.width(), status.height(),

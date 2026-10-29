@@ -88,7 +88,7 @@ public class MonitorRenderer implements BlockEntityRenderer<MonitorBlockEntity>,
 
     /** 21:9 panel bent around a vertical axis ({@code radius} 2.2 blocks) so it wraps toward the viewer. */
     private void curved(MonitorBlockEntity be, PoseStack pose, MultiBufferSource buffers, UUID vm, int light, float part0, float partW) {
-        final int segments = 32;
+        final int segments = 64;
         // 2.0 x 0.857 blocks: a 21:9 ultrawide that fits on a desk, not a 110" wall
         final float width = 2.0f;
         final float height = 0.857f;
@@ -99,7 +99,7 @@ public class MonitorRenderer implements BlockEntityRenderer<MonitorBlockEntity>,
         // letterbox once across the whole curve (fill = how much of the arc the picture covers)
         ScreenTexture live = ScreenDraw.liveTexture(vm, be.getBlockPos());
         float fill = 1f;
-        if (live != null) {
+        if (live != null && !net.hypervisorx.config.HvxClientConfig.get().fillScreens) {
             float aspect = live.width() * partW / Math.max(1f, live.height());
             fill = Math.min(1f, aspect * height / width);
         }

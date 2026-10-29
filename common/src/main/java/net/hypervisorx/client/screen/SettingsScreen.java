@@ -150,6 +150,12 @@ public class SettingsScreen extends Screen {
             client.save();
         });
         y += ROW;
+        choice(y, "fill", List.of(true, false), client.fillScreens,
+                v -> Component.translatable("hypervisorx.settings.fill." + (v ? "fill" : "fit")).getString(), v -> {
+            client.fillScreens = v;
+            client.save();
+        });
+        y += ROW;
         choice(y, "upload", List.of(8, 16, 32, 48, 96, 192), client.maxUploadMiBPerFrame, v -> v + " MiB", v -> {
             client.maxUploadMiBPerFrame = v;
             client.save();
