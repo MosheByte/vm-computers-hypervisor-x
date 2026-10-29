@@ -166,11 +166,11 @@ public final class S2C {
     /** One VM slot of a host, the way the computer screen shows it. */
     public record VmSlotInfo(int slot, UUID vm, String name, String state, String message, String backend, String guestOs,
                              String image, String target, String access, int span, int cores, int ramMb, int diskGb,
-                             boolean efi, boolean canControl, boolean owner) {
+                             boolean efi, boolean guestTools, boolean canControl, boolean owner) {
         static VmSlotInfo read(FriendlyByteBuf b) {
             return new VmSlotInfo(b.readVarInt(), b.readBoolean() ? b.readUUID() : null, b.readUtf(), b.readUtf(), b.readUtf(),
                     b.readUtf(), b.readUtf(), b.readUtf(), b.readUtf(), b.readUtf(), b.readVarInt(), b.readVarInt(),
-                    b.readVarInt(), b.readVarInt(), b.readBoolean(), b.readBoolean(), b.readBoolean());
+                    b.readVarInt(), b.readVarInt(), b.readBoolean(), b.readBoolean(), b.readBoolean(), b.readBoolean());
         }
 
         void write(FriendlyByteBuf b) {
@@ -190,6 +190,7 @@ public final class S2C {
             b.writeVarInt(ramMb);
             b.writeVarInt(diskGb);
             b.writeBoolean(efi);
+            b.writeBoolean(guestTools);
             b.writeBoolean(canControl);
             b.writeBoolean(owner);
         }

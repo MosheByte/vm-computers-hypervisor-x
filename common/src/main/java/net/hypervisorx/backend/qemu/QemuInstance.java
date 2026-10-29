@@ -256,6 +256,32 @@ final class QemuInstance implements VmInstance {
         qmpQuiet("send-key", args);
     }
 
+    /**
+     * Windows install media waits ~5 seconds on "Press any key to boot from CD or DVD" (always under UEFI).
+     * Nobody's at the keyboard during an unattended install, so we just tap Space for the first 45 seconds.
+     */
+    void pressKeyToBootDvd() {
+        JsonObject args = new JsonObject();
+        JsonArray keys = new JsonArray();
+        JsonObject space = new JsonObject();
+        space.addProperty("type", "qcode");
+        space.addProperty("data", "spc");
+        keys.add(space);
+        args.add("keys", keys);
+        Thread t = new Thread(() -> {
+            for (int i = 0; i < 45 && !stopping && process.isAlive(); i++) {
+                qmpQuiet("send-key", args);
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    return;
+                }
+            }
+        }, "hvx-qemu-bootkey");
+        t.setDaemon(true);
+        t.start();
+    }
+
     private void qmpQuiet(String command, JsonObject args) {
         QmpClient q = qmp;
         if (q == null) return;

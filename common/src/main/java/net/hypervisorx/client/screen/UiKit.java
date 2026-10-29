@@ -57,7 +57,7 @@ public final class UiKit {
     public enum Icon {
         POWER, STOP, PLAY, RESET, CAMERA, DISC, USB, LIBRARY, FOCUS, GEAR, EYE, LOCK, USER_PLUS, USER_MINUS, CART, SEARCH, DOWNLOAD,
         FOLDER, CHECK, CROSS, WARN, MONITOR, BACK, TRASH, CHIP, MEMORY, DRIVE, WIFI, PLUS, MINUS, BOX, ROCKET, INFO, CLOSE, KEYBOARD, SERVER, COIN,
-        GPU, PCIE, LAPTOP, SORT, CHEVRON_DOWN, CHEVRON_RIGHT, GRID, LIST
+        GPU, PCIE, LAPTOP, SORT, CHEVRON_DOWN, CHEVRON_RIGHT, GRID, LIST, WRENCH
     }
 
     /** True for Hebrew and other RTL languages, where text and icon order get mirrored. */

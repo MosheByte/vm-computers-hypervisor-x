@@ -58,6 +58,8 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
     private UiKit.ChoiceButton<String> backend;
     private UiKit.ChoiceButton<GuestOs> guestOs;
     private UiKit.ChoiceButton<Boolean> efi;
+    /** guest tools disc + auto install (VMware Tools, Guest Additions, virtio-win). on by default. */
+    private boolean guestTools = true;
     private UiKit.ChoiceButton<String> image;
     private UiKit.ChoiceButton<VmRecord.Access> access;
     private UiKit.ChoiceButton<Integer> span;
@@ -124,8 +126,13 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
         efi = addRenderableWidget(new UiKit.ChoiceButton<>(x + half + 4, y, fw - half - 4, 14, label("boot"), List.of(false, true), false,
                 v -> v ? "UEFI" : "BIOS", v -> fieldsDirty = true));
         y += 16;
-        image = addRenderableWidget(new UiKit.ChoiceButton<>(x, y, fw - 22, 14, label("image"), new ArrayList<>(List.of("")), "",
+        image = addRenderableWidget(new UiKit.ChoiceButton<>(x, y, fw - 44, 14, label("image"), new ArrayList<>(List.of("")), "",
                 v -> v.isEmpty() ? Component.translatable("hypervisorx.ui.no_image").getString() : v, v -> fieldsDirty = true));
+        addRenderableWidget(new UiKit.FlatButton(x + fw - 42, y, 20, 14, Component.empty(), () -> {
+            guestTools = !guestTools;
+            fieldsDirty = true;
+        }).icon(UiKit.Icon.WRENCH).accent(UiKit.OK).selectedWhen(() -> guestTools)
+                .tip(() -> Component.translatable(guestTools ? "hypervisorx.ui.tip.tools_on" : "hypervisorx.ui.tip.tools_off")));
         addRenderableWidget(new UiKit.FlatButton(x + fw - 20, y, 20, 14, Component.empty(), () -> minecraft.setScreen(new LibraryScreen(this)))
                 .icon(UiKit.Icon.LIBRARY).accent(UiKit.ACCENT_2).tip(Component.translatable("hypervisorx.ui.tip.library")));
         y += 16;
@@ -181,22 +188,25 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
                 new UiKit.FlatButton(0, 0, 10, 14, Component.empty(), () -> act(C2S.HostAction.SNAPSHOT)).icon(UiKit.Icon.CAMERA)
                         .accent(UiKit.ACCENT).enabledWhen(this::running).tip(Component.translatable("hypervisorx.focus.snapshot")),
                 new UiKit.FlatButton(0, 0, 10, 14, Component.empty(), () -> act(C2S.HostAction.INSERT_MEDIA)).icon(UiKit.Icon.DISC)
-                        .accent(UiKit.ACCENT_2).enabledWhen(this::running).tip(Component.translatable("hypervisorx.ui.media")));
+                        .accent(UiKit.ACCENT_2).enabledWhen(this::running).tip(Component.translatable("hypervisorx.ui.media")),
+                new UiKit.FlatButton(0, 0, 10, 14, Component.empty(), () -> act(C2S.HostAction.INSTALL_TOOLS)).icon(UiKit.Icon.WRENCH)
+                        .accent(UiKit.OK).enabledWhen(this::running).tip(Component.translatable("hypervisorx.ui.tip.install_tools")));
+        int n = icons.size();
         if (!rack()) {
-            // row A: four icon buttons; row B: Power and Focus with labels
+            // row A: icon buttons. row B: Power + Focus with labels
             int rowA = rowB - 3 - 14;
-            int iw = (fw - 3 * 4) / 4;
-            for (int i = 0; i < icons.size(); i++) {
+            int iw = (fw - (n - 1) * 4) / n;
+            for (int i = 0; i < n; i++) {
                 UiKit.FlatButton b = icons.get(i);
-                b.setRectangle(i == 3 ? fw - 3 * (iw + 4) : iw, 14, x + i * (iw + 4), rowA);
+                b.setRectangle(i == n - 1 ? fw - (n - 1) * (iw + 4) : iw, 14, x + i * (iw + 4), rowA);
                 addRenderableWidget(b);
             }
             power.setRectangle(half, 16, x, rowB);
             focus.setRectangle(fw - half - 4, 16, x + half + 4, rowB);
         } else {
             // racks are tighter: one row, Power and Focus split whatever the icons leave
-            int iw = 18;
-            int flex = (fw - 4 * iw - 5 * 3) / 2;
+            int iw = 16;
+            int flex = (fw - n * iw - (n + 1) * 3) / 2;
             power.setRectangle(flex, 16, x, rowB);
             int bx = x + flex + 3;
             for (UiKit.FlatButton b : icons) {
@@ -329,6 +339,7 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
         backend.set(v.backend());
         guestOs.set(GuestOs.parse(v.guestOs()));
         efi.set(v.efi());
+        guestTools = v.guestTools();
         image.add(v.image());
         image.set(v.image());
         target.setValue(v.target());
@@ -351,7 +362,7 @@ public class ComputerScreen extends AbstractContainerScreen<ComputerMenu> {
         if (current() == null && !rack()) return;
         Services.PLATFORM.sendToServer(new C2S.ConfigureVm(menu.pos(), slot, name.getValue(), backend.value(), guestOs.value().name(),
                 image.value() == null ? "" : image.value(), target.getValue(), access.value().name(), span.value(),
-                cores == null ? 2 : cores.value(), ram == null ? 4096 : ram.value(), disk == null ? 64 : disk.value(), efi.value()));
+                cores == null ? 2 : cores.value(), ram == null ? 4096 : ram.value(), disk == null ? 64 : disk.value(), efi.value(), guestTools));
         fieldsDirty = false;
         populated = false;
     }

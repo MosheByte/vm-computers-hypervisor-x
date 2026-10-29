@@ -27,6 +27,7 @@ import java.util.UUID;
  * @param audio        turn on the virtual sound card / audio streaming
  * @param target       backend-specific: window title filter for host capture, or kernel variant ("linux"/"doom") for embedded
  * @param embeddedKernel kernel image for the embedded MicroVM
+ * @param guestTools   attach the hypervisor's guest tools disc and install it during a fresh Windows setup
  */
 public record VmLaunchSpec(
         UUID id,
@@ -47,12 +48,13 @@ public record VmLaunchSpec(
         boolean gpio,
         boolean audio,
         String target,
-        Path embeddedKernel) {
+        Path embeddedKernel,
+        boolean guestTools) {
 
     /** Bare-bones spec that just points at an existing VM's files, for unregistering/deleting them. */
     public static VmLaunchSpec forFiles(UUID id, String name, Path vmDir) {
         return new VmLaunchSpec(id, name, GuestOs.LINUX, 1, 256, 640, 480, 0, false, false, false, vmDir, null, null, List.of(),
-                false, false, "", null);
+                false, false, "", null, false);
     }
 
     /** QEMU/VirtualBox format name for the imported disk, going by its extension. */

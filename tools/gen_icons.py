@@ -1274,6 +1274,20 @@ GLYPHS = {
         "##.#########",
         "............",
     ],
+    "wrench": [
+        ".......###..",
+        "......#...#.",
+        "......#..#..",
+        "......#...##",
+        ".....#.....#",
+        "....#...###.",
+        "...#...#....",
+        "..#...#.....",
+        ".#...#......",
+        "#...#.......",
+        "#..#........",
+        ".##.........",
+    ],
 }
 
 # order matters! the Java enum UiKit.Icon indexes the atlas by ordinal, so only ever append
@@ -1283,7 +1297,7 @@ ICON_ORDER = [
     "trash", "chip", "memory", "drive", "wifi", "plus", "minus", "box", "rocket", "info", "close", "keyboard",
     "server", "coin",
     # appended
-    "gpu", "pcie", "laptop", "sort", "chevron_down", "chevron_right", "grid", "list",
+    "gpu", "pcie", "laptop", "sort", "chevron_down", "chevron_right", "grid", "list", "wrench",
 ]
 
 

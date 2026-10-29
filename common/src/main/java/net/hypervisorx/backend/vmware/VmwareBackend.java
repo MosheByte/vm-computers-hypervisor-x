@@ -5,9 +5,11 @@ import net.hypervisorx.backend.BackendException;
 import net.hypervisorx.backend.BackendFeature;
 import net.hypervisorx.backend.BackendStatus;
 import net.hypervisorx.backend.GuestOs;
+import net.hypervisorx.backend.GuestTools;
 import net.hypervisorx.backend.HypervisorBackend;
 import net.hypervisorx.backend.VmInstance;
 import net.hypervisorx.backend.VmLaunchSpec;
+import net.hypervisorx.backend.WindowsUnattend;
 import net.hypervisorx.util.Processes;
 
 import java.io.IOException;
@@ -131,7 +133,7 @@ public final class VmwareBackend implements HypervisorBackend {
             }
             // brand-new Windows VM installs itself, answer disc on first boot only
             boolean freshWindows = spec.existingDisk() == null && spec.diskGb() > 0 && !Files.exists(disk)
-                    && spec.isoImage() != null && net.hypervisorx.backend.WindowsUnattend.applies(spec.guestOs());
+                    && spec.isoImage() != null && WindowsUnattend.applies(spec.guestOs());
             if (spec.existingDisk() != null) {
                 // already picked above
             } else if (spec.diskGb() > 0 && !Files.exists(disk)) {
@@ -151,26 +153,24 @@ public final class VmwareBackend implements HypervisorBackend {
                 vncPort = Processes.allocatePort(5970, 6099);
                 password = randomPassword();
                 writeVmx(spec, vmxPath, disk, vncPort, password, pipe);
-                if (net.hypervisorx.backend.WindowsUnattend.applies(spec.guestOs())) {
-                    Path dir = inst.vmrun().getParent();
-                    Path answers = freshWindows ? net.hypervisorx.backend.WindowsUnattend.buildIso(spec, dir.resolve(Processes.exe("mkisofs"))) : null;
-                    Path tools = dir.resolve("windows.iso");
-                    VmxFile vmx = VmxFile.load(vmxPath);
-                    int port = 2 + (int) spec.usbDrives().stream().filter(Files::isRegularFile).count();
-                    for (Path cd : new Path[]{answers, Files.isRegularFile(tools) ? tools : null}) {
-                        if (cd == null || port >= 6) continue;
-                        vmx.set("sata0:" + port + ".present", true);
-                        vmx.set("sata0:" + port + ".deviceType", "cdrom-image");
-                        vmx.set("sata0:" + port + ".fileName", cd.toAbsolutePath().toString());
-                        vmx.set("sata0:" + port + ".startConnected", true);
-                        port++;
-                    }
-                    // short firmware pause so the display's connected before Windows asks for a key to boot the DVD
-                    if (freshWindows) vmx.set("bios.bootDelay", 6000);
-                    else vmx.remove("bios.bootDelay");
-                    vmx.save(vmxPath);
-                    if (answers != null) net.hypervisorx.HyperVisorX.LOG.info("Windows VM {}: unattended setup disc attached", spec.id());
+                // VMware Tools disc on every boot (display, mouse, time drivers). a fresh Windows installs it by itself
+                GuestTools.Disc tools = spec.guestTools() ? GuestTools.vmware(inst.vmrun().getParent(), spec.guestOs()) : null;
+                Path answers = freshWindows ? WindowsUnattend.buildIso(spec, tools) : null;
+                VmxFile vmx = VmxFile.load(vmxPath);
+                int port = 2 + (int) spec.usbDrives().stream().filter(Files::isRegularFile).count();
+                for (Path cd : new Path[]{answers, tools != null ? tools.disc() : null}) {
+                    if (cd == null || port >= 6) continue;
+                    vmx.set("sata0:" + port + ".present", true);
+                    vmx.set("sata0:" + port + ".deviceType", "cdrom-image");
+                    vmx.set("sata0:" + port + ".fileName", cd.toAbsolutePath().toString());
+                    vmx.set("sata0:" + port + ".startConnected", true);
+                    port++;
                 }
+                // short firmware pause so the display's connected before Windows asks for a key to boot the DVD
+                if (freshWindows) vmx.set("bios.bootDelay", 6000);
+                else vmx.remove("bios.bootDelay");
+                vmx.save(vmxPath);
+                if (answers != null) net.hypervisorx.HyperVisorX.LOG.info("Windows VM {}: unattended setup disc attached", spec.id());
             }
 
             Path log = vmxPath.getParent().resolve("vmware.log");
@@ -350,6 +350,11 @@ public final class VmwareBackend implements HypervisorBackend {
             vmx.set("serial0.yieldOnMsrRead", true);
         }
         vmx.save(vmxPath);
+    }
+
+    @Override
+    public GuestTools.Disc guestTools(VmLaunchSpec spec, BackendContext context) {
+        return find(context).map(i -> GuestTools.vmware(i.vmrun().getParent(), spec.guestOs())).orElse(null);
     }
 
     @Override

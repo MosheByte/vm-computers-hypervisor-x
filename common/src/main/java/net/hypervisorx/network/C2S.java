@@ -66,7 +66,7 @@ public final class C2S {
     /** Power and management buttons for one VM slot on a host block. */
     public record HostAction(BlockPos pos, int slot, int action) implements CustomPacketPayload {
         public static final int POWER_ON = 0, SHUTDOWN = 1, FORCE_OFF = 2, RESET = 3, SNAPSHOT = 4, CTRL_ALT_DEL = 5,
-                ADD_VM = 6, DELETE_VM = 7, FOCUS = 8, EJECT = 9, INSERT_MEDIA = 10, REOPEN_MENU = 11;
+                ADD_VM = 6, DELETE_VM = 7, FOCUS = 8, EJECT = 9, INSERT_MEDIA = 10, REOPEN_MENU = 11, INSTALL_TOOLS = 12;
         public static final Type<HostAction> TYPE = makeType("host_action");
         public static final StreamCodec<FriendlyByteBuf, HostAction> CODEC = CustomPacketPayload.codec(HostAction::write, HostAction::new);
 
@@ -108,13 +108,14 @@ public final class C2S {
 
     /** VM settings saved from the computer screen. */
     public record ConfigureVm(BlockPos pos, int slot, String name, String backend, String guestOs, String image, String target,
-                              String access, int span, int cores, int ramMb, int diskGb, boolean efi) implements CustomPacketPayload {
+                              String access, int span, int cores, int ramMb, int diskGb, boolean efi, boolean guestTools)
+            implements CustomPacketPayload {
         public static final Type<ConfigureVm> TYPE = makeType("configure_vm");
         public static final StreamCodec<FriendlyByteBuf, ConfigureVm> CODEC = CustomPacketPayload.codec(ConfigureVm::write, ConfigureVm::new);
 
         ConfigureVm(FriendlyByteBuf b) {
             this(b.readBlockPos(), b.readVarInt(), b.readUtf(64), b.readUtf(32), b.readUtf(32), b.readUtf(1024), b.readUtf(256),
-                    b.readUtf(32), b.readVarInt(), b.readVarInt(), b.readVarInt(), b.readVarInt(), b.readBoolean());
+                    b.readUtf(32), b.readVarInt(), b.readVarInt(), b.readVarInt(), b.readVarInt(), b.readBoolean(), b.readBoolean());
         }
 
         void write(FriendlyByteBuf b) {
@@ -131,6 +132,7 @@ public final class C2S {
             b.writeVarInt(ramMb);
             b.writeVarInt(diskGb);
             b.writeBoolean(efi);
+            b.writeBoolean(guestTools);
         }
 
         @Override

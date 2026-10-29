@@ -69,6 +69,16 @@ hardware acceleration is active.
 engine can produce frames. The rates above are expectations from each engine's capture method;
 only the embedded MicroVM was measured for this release. Singleplayer uses an uncompressed in-memory path.
 
+### Guest tools (on by default)
+Every computer starts with its engine's guest drivers in the drive: **VMware Tools**, **VirtualBox
+Guest Additions** or the **virtio-win** guest tools for QEMU (downloaded once and SHA-256 checked).
+They bring the hypervisor's display driver (any resolution, smooth redraws), an exact mouse, time
+sync and clean shutdowns. A new Windows 10/11 installs unattended on VMware, VirtualBox and QEMU and
+installs the tools by itself at the first sign-in; on a system that is already installed, the wrench
+button in the PC screen types the silent installer into Windows for you. The wrench next to the
+image switches the feature off per computer. Linux distributions bring their own tools
+(open-vm-tools, virtualbox-guest-utils, qemu-guest-agent).
+
 ### Computers and parts
 - **Retro PC** (desktop case) and **RGB tempered-glass gaming tower** — the GPU, RAM, CPU and
   drives you install are visible through the glass, fans and strips animate when powered.

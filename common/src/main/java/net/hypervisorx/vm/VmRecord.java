@@ -52,6 +52,8 @@ public final class VmRecord {
     /** window title (host capture) or kernel variant (embedded). */
     public String target = "";
     public boolean efi;
+    /** attach the engine's guest tools disc on every boot and install it during a fresh Windows setup. on by default. */
+    public boolean guestTools = true;
     public Access access = Access.PRIVATE;
     /** concurrent set, input packets read it off the server thread. */
     public final Set<UUID> trusted = java.util.concurrent.ConcurrentHashMap.newKeySet();
@@ -91,6 +93,7 @@ public final class VmRecord {
         t.putString("Image", image);
         t.putString("Target", target);
         t.putBoolean("Efi", efi);
+        t.putBoolean("GuestTools", guestTools);
         t.putString("Access", access.name());
         ListTag tr = new ListTag();
         for (UUID u : trusted) tr.add(StringTag.valueOf(u.toString()));
@@ -119,6 +122,7 @@ public final class VmRecord {
         r.image = t.getString("Image");
         r.target = t.getString("Target");
         r.efi = t.getBoolean("Efi");
+        r.guestTools = !t.contains("GuestTools") || t.getBoolean("GuestTools");
         r.access = Access.parse(t.getString("Access"));
         for (Tag e : t.getList("Trusted", Tag.TAG_STRING)) {
             try {

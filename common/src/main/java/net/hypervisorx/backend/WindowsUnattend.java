@@ -1,7 +1,6 @@
 package net.hypervisorx.backend;
 
 import net.hypervisorx.HyperVisorX;
-import net.hypervisorx.util.Processes;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -9,12 +8,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * Hands-free Windows setup for a brand-new Windows VM: an {@code Autounattend.xml} on a small
- * answer disc that Windows Setup reads by itself. It partitions the new virtual disk, installs
- * Windows (Pro edition, generic installation key, so Windows stays unactivated until the player
- * enters their own key), creates a local "Player" account that signs in automatically, skips the
- * first-run screens and installs the hypervisor's guest tools from a second disc. Windows 11's
- * TPM / Secure Boot / RAM checks are skipped, because the virtual machine has no TPM.
+ * Hands-free setup for a brand-new Windows VM. We drop an {@code Autounattend.xml} on a small answer
+ * disc and Windows Setup picks it up on its own. It partitions the new virtual disk, installs Windows
+ * (Pro, generic install key, so it stays unactivated until the player puts in their own key), makes a
+ * local "Player" account that signs in automatically, skips the first-run screens and installs the
+ * hypervisor's guest tools ({@link GuestTools}) from their disc. Windows 11's TPM / Secure Boot / RAM
+ * checks get skipped since the VM has no TPM.
  * <p>
  * The answer disc only goes in on the very first boot of a fresh disk. That way booting the
  * Windows ISO again later can't wipe an installed system.
@@ -32,21 +31,20 @@ public final class WindowsUnattend {
     }
 
     /**
-     * Builds {@code unattend.iso} in the VM folder with {@code mkisofs} and returns it, or null when
-     * no ISO tool is available (setup then runs interactively, as before).
+     * Builds {@code unattend.iso} in the VM folder and returns it. Null if we can't write it,
+     * then setup just runs interactively like normal.
+     *
+     * @param tools guest tools disc attached next to it, installed at first sign-in. null for none
      */
-    public static Path buildIso(VmLaunchSpec spec, Path mkisofs) {
-        if (mkisofs == null || !Files.isRegularFile(mkisofs)) return null;
+    public static Path buildIso(VmLaunchSpec spec, GuestTools.Disc tools) {
         try {
             Path dir = spec.vmDir().resolve("unattend");
             Files.createDirectories(dir);
-            Files.writeString(dir.resolve("Autounattend.xml"), xml(spec.efi(), spec.guestOs() == GuestOs.WINDOWS_11), StandardCharsets.UTF_8);
+            Path answers = dir.resolve("Autounattend.xml");
+            Files.writeString(answers, xml(spec.efi(), spec.guestOs() == GuestOs.WINDOWS_11, tools != null ? tools.windowsCommand() : null),
+                    StandardCharsets.UTF_8);
             Path iso = spec.vmDir().resolve("unattend.iso");
-            Processes.Result r = Processes.run(60, mkisofs.toString(), "-quiet", "-J", "-r", "-V", "UNATTEND", "-o", iso.toString(), dir.toString());
-            if (!r.ok() || !Files.isRegularFile(iso)) {
-                HyperVisorX.LOG.warn("Could not build the Windows answer disc: {}", r.output());
-                return null;
-            }
+            IsoImage.write(iso, "UNATTEND", java.util.Map.of("Autounattend.xml", answers));
             return iso;
         } catch (IOException e) {
             HyperVisorX.LOG.warn("Could not build the Windows answer disc: {}", e.getMessage());
@@ -54,7 +52,8 @@ public final class WindowsUnattend {
         }
     }
 
-    static String xml(boolean efi, boolean windows11) {
+    /** @param toolsCommand silent guest tools install to run at first sign-in (then one restart), or null */
+    static String xml(boolean efi, boolean windows11, String toolsCommand) {
         String component = "processorArchitecture=\"amd64\" publicKeyToken=\"31bf3856ad364e35\" language=\"neutral\" versionScope=\"nonSxS\"";
         String partitions = efi
                 ? """
@@ -162,14 +161,21 @@ public final class WindowsUnattend {
                       </AutoLogon>
                       <FirstLogonCommands>
                         <SynchronousCommand wcm:action="add"><Order>1</Order><CommandLine>cmd /c powercfg /change monitor-timeout-ac 0 &amp; powercfg /change standby-timeout-ac 0 &amp; powercfg /change hibernate-timeout-ac 0</CommandLine></SynchronousCommand>
-                        <SynchronousCommand wcm:action="add"><Order>2</Order><CommandLine>cmd /c for %%d in (D E F G H I J) do if exist %%d:\\setup64.exe start "" /wait %%d:\\setup64.exe /S /v"/qn REBOOT=R ADDLOCAL=ALL"</CommandLine><Description>Install VMware Tools</Description></SynchronousCommand>
-                        <SynchronousCommand wcm:action="add"><Order>3</Order><CommandLine>shutdown /r /t 15 /c "HyperVisor X: guest tools installed, restarting"</CommandLine></SynchronousCommand>
+                @TOOLS@
                       </FirstLogonCommands>
                     </component>
                   </settings>
                 </unattend>
                 """.formatted(component, bypass, partitions, windows11 ? "Windows 11" : "Windows 10", efi ? 3 : 1, GENERIC_PRO_KEY,
                 noNetworkOobe.isEmpty() ? "<RunSynchronousCommand wcm:action=\"add\"><Order>1</Order><Path>cmd /c exit 0</Path></RunSynchronousCommand>"
-                        : noNetworkOobe.replace("SynchronousCommand", "RunSynchronousCommand").replace("<CommandLine>", "<Path>").replace("</CommandLine>", "</Path>"));
+                        : noNetworkOobe.replace("SynchronousCommand", "RunSynchronousCommand").replace("<CommandLine>", "<Path>").replace("</CommandLine>", "</Path>"))
+                .replace("@TOOLS@\n", toolsCommand == null ? "" : """
+                                <SynchronousCommand wcm:action="add"><Order>2</Order><CommandLine>%s</CommandLine><Description>Install the guest tools</Description></SynchronousCommand>
+                                <SynchronousCommand wcm:action="add"><Order>3</Order><CommandLine>shutdown /r /t 15 /c "HyperVisor X: guest tools installed, restarting"</CommandLine></SynchronousCommand>
+                        """.formatted(xmlText(toolsCommand)));
+    }
+
+    private static String xmlText(String s) {
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 }
