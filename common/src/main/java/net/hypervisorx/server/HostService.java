@@ -131,13 +131,13 @@ public final class HostService {
     private static S2C.VmSlotInfo slotInfo(ServerPlayer p, int slot, VmRecord r, VmManager m) {
         if (r == null) {
             return new S2C.VmSlotInfo(slot, null, "", "STOPPED", "", "auto", GuestOs.LINUX.name(), "", "", VmRecord.Access.PRIVATE.name(),
-                    1, 0, 0, 0, false, true, true);
+                    1, 0, 0, 0, false, true, true, true);
         }
         VmSession s = m.session(r.id);
         String backendLabel = r.backend.equals("auto") ? "auto" : r.backend;
         return new S2C.VmSlotInfo(slot, r.id, r.name, s == null ? "STOPPED" : s.state().name(), s == null ? "" : s.message(),
                 backendLabel, r.guestOs.name(), r.image, r.target, r.access.name(), r.spanMonitors, r.allocCores, r.allocRamMb,
-                r.allocDiskGb, r.efi, m.canControl(p, r), m.canConfigure(p, r));
+                r.allocDiskGb, r.efi, r.guestTools, m.canControl(p, r), m.canConfigure(p, r));
     }
 
     /** Makes the VM record for a host slot the first time it's used. */
@@ -265,6 +265,10 @@ public final class HostService {
             case C2S.HostAction.INSERT_MEDIA -> {
                 if (m.canControl(p, r)) m.changeMedia(r.id, ImageLibrary.resolve(r.image), p);
             }
+            case C2S.HostAction.INSTALL_TOOLS -> {
+                if (m.canControl(p, r)) m.installGuestTools(r.id, p);
+                else deny(p);
+            }
             default -> {
             }
         }
@@ -305,6 +309,7 @@ public final class HostService {
                 if (m.canConfigure(p, r)) m.snapshot(r.id, p);
             }
             case C2S.HostAction.CTRL_ALT_DEL -> m.input(p, new C2S.Input(r.id, C2S.Input.CTRL_ALT_DEL, 0, 0, 0, 0));
+            case C2S.HostAction.INSTALL_TOOLS -> m.installGuestTools(r.id, p);
             default -> {
             }
         }
@@ -343,6 +348,7 @@ public final class HostService {
         r.access = VmRecord.Access.parse(c.access());
         r.spanMonitors = Math.max(1, Math.min(3, c.span()));
         r.efi = c.efi();
+        r.guestTools = c.guestTools();
         if (host instanceof ServerRackBlockEntity) {
             BuiltSpec pool = host.builtSpec();
             int otherCores = 0, otherRam = 0, otherDisk = 0;

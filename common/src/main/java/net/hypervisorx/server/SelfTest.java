@@ -33,7 +33,7 @@ public final class SelfTest {
                         + (st.version().isEmpty() ? "" : " " + st.version()) + " - " + st.message(), st.available() ? ChatFormatting.GREEN : ChatFormatting.GRAY));
                 UUID id = UUID.randomUUID();
                 VmLaunchSpec spec = new VmLaunchSpec(id, "selftest", GuestOs.LINUX, 1, 64, 960, 544, 0, false, false, false,
-                        ctx.vmsRoot().resolve("selftest"), null, null, List.of(), false, false, "linux", null);
+                        ctx.vmsRoot().resolve("selftest"), null, null, List.of(), false, false, "linux", null, false);
                 long t0 = System.currentTimeMillis();
                 VmInstance vm = new EmbeddedBackend().launch(spec, ctx);
                 FrameStream stream = new FrameStream(vm.framebuffer());

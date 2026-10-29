@@ -5,6 +5,7 @@ import net.hypervisorx.backend.BackendContext;
 import net.hypervisorx.backend.BackendException;
 import net.hypervisorx.backend.BackendRegistry;
 import net.hypervisorx.backend.BackendStatus;
+import net.hypervisorx.backend.GuestTools;
 import net.hypervisorx.backend.HypervisorBackend;
 import net.hypervisorx.backend.VmInstance;
 import net.hypervisorx.backend.VmLaunchSpec;
@@ -338,7 +339,7 @@ public final class VmManager {
             existingDisk = vmDir.resolve("imported-" + existingDisk.getFileName());
         }
         VmLaunchSpec spec = new VmLaunchSpec(r.id, r.name, r.guestOs, cores, ram, width, height, disk, hw.nvme(), efi,
-                r.guestOs.needsEfiAndTpm(), vmDir, iso, existingDisk, usb, hw.gpio(), true, r.target, null);
+                r.guestOs.needsEfiAndTpm(), vmDir, iso, existingDisk, usb, hw.gpio(), true, r.target, null, r.guestTools);
 
         VmSession s = new VmSession(r, backendId, spec);
         s.ramCommittedMb = ram;
@@ -465,6 +466,44 @@ public final class VmManager {
                 msg = Component.translatable("hypervisorx.msg.snapshot_ok", name);
             } catch (BackendException e) {
                 msg = Component.translatable("hypervisorx.msg.snapshot_failed", e.getMessage());
+            }
+            Component m = msg;
+            server.execute(() -> requester.sendSystemMessage(m));
+        });
+    }
+
+    /**
+     * Installs the engine's guest tools on a running, already installed Windows. Puts the tools disc in the
+     * drive if it wasn't attached at boot, then types the silent install into the Run box and runs it as admin.
+     * (A fresh Windows install does this on its own through its answer file.)
+     */
+    public void installGuestTools(UUID id, ServerPlayer requester) {
+        VmSession s = sessions.get(id);
+        VmRecord r = data().get(id);
+        if (s == null || r == null || s.instance() == null || s.state() != VmSession.State.RUNNING) {
+            requester.sendSystemMessage(Component.translatable("hypervisorx.msg.tools_not_running"));
+            return;
+        }
+        if (!r.guestOs.isWindowsFamily()) {
+            requester.sendSystemMessage(Component.translatable("hypervisorx.msg.tools_not_windows"));
+            return;
+        }
+        HypervisorBackend backend = BackendRegistry.get(s.backendId).orElse(null);
+        if (backend == null) return;
+        BackendContext ctx = backendContext();
+        launcher.execute(() -> {
+            GuestTools.Disc disc = backend.guestTools(s.spec, ctx);
+            Component msg;
+            if (disc == null) {
+                msg = Component.translatable("hypervisorx.msg.tools_none", backend.displayName());
+            } else {
+                try {
+                    if (!s.spec.guestTools()) s.instance().changeMedia(disc.disc());
+                    GuestKeyboard.runElevated(s.instance(), disc.windowsCommand());
+                    msg = Component.translatable("hypervisorx.msg.tools_installing");
+                } catch (BackendException e) {
+                    msg = Component.translatable("hypervisorx.msg.tools_restart");
+                }
             }
             Component m = msg;
             server.execute(() -> requester.sendSystemMessage(m));

@@ -1,3 +1,18 @@
+# HyperVisor X — 1.3.2
+
+- **Guest tools, on by default for every computer.** Each engine's own drivers are put in the
+  machine's drive at every start: VMware Tools, VirtualBox Guest Additions, or the virtio-win guest
+  tools for QEMU (downloaded once, 32 MB, SHA-256 checked). They give the guest the hypervisor's
+  display driver (any resolution, smooth redraws), an exact mouse, time sync and clean shutdowns.
+  The wrench next to the image in the PC screen turns it off.
+- A new Windows 10/11 now installs unattended on **VirtualBox and QEMU** too, not only VMware, and
+  installs the engine's guest tools by itself at the first sign-in. The DVD's "Press any key to boot"
+  prompt is answered on all three engines.
+- Already installed Windows: the new wrench button in the PC screen installs the guest tools into the
+  running system (it types the silent installer into Windows and confirms the admin prompt).
+- The Windows answer disc is now written by HyperVisor X itself, so it no longer needs VMware's
+  `mkisofs`.
+
 # HyperVisor X — 1.3.1
 
 - Every in-world screen (monitors, the curved ultrawide, CRT, laptops, monitor arms, video walls) now

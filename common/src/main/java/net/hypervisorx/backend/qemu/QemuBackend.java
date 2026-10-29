@@ -5,9 +5,11 @@ import net.hypervisorx.backend.BackendException;
 import net.hypervisorx.backend.BackendFeature;
 import net.hypervisorx.backend.BackendStatus;
 import net.hypervisorx.backend.GuestOs;
+import net.hypervisorx.backend.GuestTools;
 import net.hypervisorx.backend.HypervisorBackend;
 import net.hypervisorx.backend.VmInstance;
 import net.hypervisorx.backend.VmLaunchSpec;
+import net.hypervisorx.backend.WindowsUnattend;
 import net.hypervisorx.util.Processes;
 
 import java.io.IOException;
@@ -155,6 +157,9 @@ public final class QemuBackend implements HypervisorBackend {
         try {
             Files.createDirectories(spec.vmDir());
             Path disk = spec.vmDir().resolve("disk.qcow2");
+            // brand-new Windows VM installs itself, answer disc goes in on the first boot only
+            boolean freshWindows = spec.existingDisk() == null && spec.diskGb() > 0 && !Files.exists(disk)
+                    && spec.isoImage() != null && WindowsUnattend.applies(spec.guestOs());
             if (spec.existingDisk() == null && spec.diskGb() > 0 && !Files.exists(disk)) {
                 Processes.Result r = Processes.run(120, qemuImg.toString(), "create", "-f", "qcow2", disk.toString(), spec.diskGb() + "G");
                 if (!r.ok()) throw new BackendException("qemu-img create failed: " + r.output());
@@ -247,6 +252,16 @@ public final class QemuBackend implements HypervisorBackend {
             String cdFile = spec.isoImage() != null && Files.isRegularFile(spec.isoImage()) ? ",file=" + opt(spec.isoImage()) : "";
             cmd.addAll(List.of("-drive", "if=none,id=cd0,media=cdrom,readonly=on" + cdFile));
             cmd.addAll(List.of("-device", "ide-cd,drive=cd0,bus=ide." + (legacy ? "1" : "2") + ",id=cd0dev,bootindex=2"));
+            // virtio-win guest tools disc on every start (guest agent, drivers), a fresh Windows installs it on its own
+            GuestTools.Disc tools = spec.guestTools() && !legacy ? GuestTools.qemu(ctx.dataRoot(), spec.guestOs()) : null;
+            Path answers = freshWindows ? WindowsUnattend.buildIso(spec, tools) : null;
+            int bus = 3;
+            for (Path cd : new Path[]{answers, tools != null ? tools.disc() : null}) {
+                if (cd == null) continue;
+                cmd.addAll(List.of("-drive", "if=none,id=cd" + bus + ",media=cdrom,readonly=on,file=" + opt(cd)));
+                cmd.addAll(List.of("-device", "ide-cd,drive=cd" + bus + ",bus=ide." + bus));
+                bus++;
+            }
 
             String nic = switch (spec.guestOs()) {
                 case DOS -> "ne2k_pci";
@@ -278,6 +293,7 @@ public final class QemuBackend implements HypervisorBackend {
             QemuInstance instance = new QemuInstance(spec, process, log, bindHost, vncPort, qmpPort, qmpSocket, vncPassword, gpioPort,
                     String.join(" ", notes));
             instance.connect();
+            if (freshWindows) instance.pressKeyToBootDvd();
             return instance;
         } catch (IOException e) {
             if (vncPort > 0) Processes.releasePort(vncPort);
@@ -338,6 +354,11 @@ public final class QemuBackend implements HypervisorBackend {
         } catch (IOException | InterruptedException e) {
             return Optional.of("swtpm failed to start: " + e.getMessage());
         }
+    }
+
+    @Override
+    public GuestTools.Disc guestTools(VmLaunchSpec spec, BackendContext context) {
+        return GuestTools.qemu(context.dataRoot(), spec.guestOs());
     }
 
     @Override

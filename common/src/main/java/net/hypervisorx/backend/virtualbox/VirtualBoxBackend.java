@@ -5,9 +5,11 @@ import net.hypervisorx.backend.BackendException;
 import net.hypervisorx.backend.BackendFeature;
 import net.hypervisorx.backend.BackendStatus;
 import net.hypervisorx.backend.GuestOs;
+import net.hypervisorx.backend.GuestTools;
 import net.hypervisorx.backend.HypervisorBackend;
 import net.hypervisorx.backend.VmInstance;
 import net.hypervisorx.backend.VmLaunchSpec;
+import net.hypervisorx.backend.WindowsUnattend;
 import net.hypervisorx.util.Processes;
 
 import java.io.IOException;
@@ -197,6 +199,9 @@ public final class VirtualBoxBackend implements HypervisorBackend {
 
             // a saved (suspended) machine won't take any changes, so just resume it as is
             boolean saved = state.equals("saved");
+            // brand-new Windows VM installs itself, answer disc on first boot only
+            boolean freshWindows = !saved && spec.existingDisk() == null && spec.diskGb() > 0 && !Files.exists(spec.vmDir().resolve("disk.vdi"))
+                    && spec.isoImage() != null && WindowsUnattend.applies(spec.guestOs());
             if (!saved) {
                 boolean legacy = spec.guestOs() == GuestOs.DOS;
                 List<String> modify = Processes.list("modifyvm", name,
@@ -253,6 +258,15 @@ public final class VirtualBoxBackend implements HypervisorBackend {
                     manageQuiet(manage, "storageattach", name, "--storagectl", "SATA", "--port", Integer.toString(port++), "--device", "0",
                             "--type", "hdd", "--hotpluggable", "on", "--medium", usb.toAbsolutePath().toString());
                 }
+                // Guest Additions disc on every boot (display driver, mouse integration, time sync). a fresh Windows installs it by itself
+                GuestTools.Disc tools = spec.guestTools() ? GuestTools.virtualBox(manage.getParent()) : null;
+                Path answers = freshWindows ? WindowsUnattend.buildIso(spec, tools) : null;
+                for (Path cd : new Path[]{answers, tools != null ? tools.disc() : null}) {
+                    if (cd == null || port >= 6) continue;
+                    manageQuiet(manage, "storageattach", name, "--storagectl", "SATA", "--port", Integer.toString(port++), "--device", "0",
+                            "--type", "dvddrive", "--medium", cd.toAbsolutePath().toString());
+                }
+                if (answers != null) net.hypervisorx.HyperVisorX.LOG.info("Windows VM {}: unattended setup disc attached", spec.id());
             }
             if (saved) {
                 String uart = info.getOrDefault("uartmode1", "");
@@ -278,6 +292,7 @@ public final class VirtualBoxBackend implements HypervisorBackend {
             } catch (BackendException e) {
                 throw new BackendException(explainStartFailure(spec, name, e.getMessage()), e);
             }
+            if (freshWindows) pressKeyToBootDvd(manage, name);
             VboxWebService.ensure(webSrv, manage, ctx.virtualBoxWebPort(), ctx.allowVboxAuthChange(), ctx.dataRoot().resolve("logs"));
             VirtualBoxInstance instance = new VirtualBoxInstance(spec, manage, ctx.virtualBoxWebPort(), gpioPort);
             instance.connect();
@@ -290,6 +305,30 @@ public final class VirtualBoxBackend implements HypervisorBackend {
             if (gpioPort > 0) Processes.releasePort(gpioPort);
             throw e;
         }
+    }
+
+    /**
+     * Windows install media waits ~5 seconds on "Press any key to boot from CD or DVD" (always under UEFI).
+     * Nobody's at the keyboard during an unattended install, so we tap Space for the first 45 seconds.
+     */
+    private static void pressKeyToBootDvd(Path manage, String name) {
+        Thread t = new Thread(() -> {
+            for (int i = 0; i < 45; i++) {
+                if (!manageQuiet(manage, "controlvm", name, "keyboardputscancode", "39", "b9") && i > 5) return;
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    return;
+                }
+            }
+        }, "hvx-vbox-bootkey");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    @Override
+    public GuestTools.Disc guestTools(VmLaunchSpec spec, BackendContext context) {
+        return findManage(context).map(m -> GuestTools.virtualBox(m.getParent())).orElse(null);
     }
 
     @Override

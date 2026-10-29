@@ -25,7 +25,14 @@ public interface HypervisorBackend {
      */
     VmInstance launch(VmLaunchSpec spec, BackendContext context) throws BackendException;
 
-    /** Deletes backend-specific files and registrations of a VM (disk images are kept unless {@code deleteDisks}). */
+    /**
+     * This engine's guest tools disc for {@code spec}'s guest (VMware Tools, VirtualBox Guest Additions,
+     * virtio-win), or null if it has none for that guest. Might download, so keep it off the server thread.
+     */
+    default GuestTools.Disc guestTools(VmLaunchSpec spec, BackendContext context) {
+        return null;
+    }
+
     /** Removes a VM's backend-specific files and registrations. Disk images stay unless {@code deleteDisks}. */
     default void destroy(VmLaunchSpec spec, BackendContext context, boolean deleteDisks) throws BackendException {
     }
