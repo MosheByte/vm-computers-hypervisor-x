@@ -124,6 +124,8 @@ public final class VmwareBackend implements HypervisorBackend {
         try {
             Files.createDirectories(spec.vmDir());
             Path vmxPath = spec.vmDir().resolve(spec.machineName() + ".vmx");
+            VmwareInstance attached = attachIfRunning(spec, inst, vmxPath);
+            if (attached != null) return attached;
             Path disk = spec.vmDir().resolve("disk.vmdk");
             if (spec.existingDisk() != null) {
                 if (!spec.existingDiskFormat().equals("vmdk")) {
@@ -209,6 +211,32 @@ public final class VmwareBackend implements HypervisorBackend {
             if (vncPort > 0) Processes.releasePort(vncPort);
             throw e;
         }
+    }
+
+    /**
+     * VM still running (game closed without stopping it, or someone started it from VMware itself)? We just
+     * take it over as is: same display port and password, no restart, nothing in its .vmx touched.
+     */
+    private static VmwareInstance attachIfRunning(VmLaunchSpec spec, Install inst, Path vmxPath) throws IOException {
+        if (!Files.exists(vmxPath)) return null;
+        String list = Processes.run(30, inst.vmrun().toString(), "-T", inst.hostType(), "list").output().toLowerCase(java.util.Locale.ROOT);
+        if (!list.contains(vmxPath.toAbsolutePath().normalize().toString().toLowerCase(java.util.Locale.ROOT))) return null;
+        VmxFile vmx = VmxFile.load(vmxPath);
+        String port = vmx.get("RemoteDisplay.vnc.port");
+        String password = vmx.get("RemoteDisplay.vnc.password");
+        if (port == null || password == null || !"true".equalsIgnoreCase(vmx.get("RemoteDisplay.vnc.enabled"))) return null;
+        int vncPort = Integer.parseInt(port.trim());
+        Processes.reservePort(vncPort);
+        String pipe = Processes.WINDOWS ? "\\\\.\\pipe\\hvx-gpio-" + spec.id().toString().substring(0, 8) : spec.vmDir().resolve("gpio.sock").toString();
+        VmwareInstance instance = new VmwareInstance(spec, inst, vmxPath, vncPort, password, spec.gpio() ? pipe : null);
+        try {
+            instance.connect();
+        } catch (IOException e) {
+            Processes.releasePort(vncPort);
+            throw e;
+        }
+        net.hypervisorx.HyperVisorX.LOG.info("VMware VM {} was already running; attached to its display on port {}", spec.id(), vncPort);
+        return instance;
     }
 
     /** Installed Workstation/Player version ("26H1u1", "17.6.2"), or "" if we can't read it. */

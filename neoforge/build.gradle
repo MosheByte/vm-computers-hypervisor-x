@@ -22,7 +22,13 @@ neoForge {
             systemProperty 'hvx.autotest', (project.findProperty('hvx.autotest') ?: 'false').toString()
             // -Phvx.video=true: a scripted scene for a screen recording at 1920x1080
             systemProperty 'hvx.video', (project.findProperty('hvx.video') ?: 'false').toString()
-            if (project.findProperty('hvx.video') == 'true') programArguments.addAll('--width', '1920', '--height', '1080')
+            // -Phvx.videoworld=<save folder>: film in that world, on the machine already running there
+            systemProperty 'hvx.videoworld', (project.findProperty('hvx.videoworld') ?: '').toString()
+            if (project.findProperty('hvx.video') == 'true') {
+                programArguments.addAll('--width', '1920', '--height', '1080')
+                // the filmed machine keeps most of the host's memory
+                jvmArgument '-Xmx3G'
+            }
             else if (project.findProperty('hvx.autotest') == 'true' || project.findProperty('hvx.vmwaretest') == 'true' || project.findProperty('hvx.backendtest')) programArguments.addAll('--width', '1600', '--height', '900')
             // ./gradlew :neoforge:runClient -Phvx.demoworld=true opens a fresh world with the /hvx demo showroom
             systemProperty 'hvx.demoworld', (project.findProperty('hvx.demoworld') ?: 'false').toString()

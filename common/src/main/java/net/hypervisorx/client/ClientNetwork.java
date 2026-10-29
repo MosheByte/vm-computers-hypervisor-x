@@ -26,6 +26,14 @@ public final class ClientNetwork {
         VmAudioPlayer.onAudio(p);
     }
 
+    public static void cursorShape(S2C.CursorShape p) {
+        GuestCursors.onShape(p);
+    }
+
+    public static void cursorWarp(S2C.CursorWarp p) {
+        if (Minecraft.getInstance().screen instanceof FocusScreen f && f.vm().equals(p.vm())) f.onWarp(p.x(), p.y());
+    }
+
     public static void status(S2C.VmStatus p) {
         ClientVmCache.put(p);
     }

@@ -43,7 +43,9 @@ public final class HvxNetwork {
             new S2CDef<>(S2C.OpenFocus.TYPE, S2C.OpenFocus.CODEC, p -> ClientNetwork.openFocus(p), false),
             new S2CDef<>(S2C.HostInfo.TYPE, S2C.HostInfo.CODEC, p -> ClientNetwork.hostInfo(p), false),
             new S2CDef<>(S2C.Library.TYPE, S2C.Library.CODEC, p -> ClientNetwork.library(p), false),
-            new S2CDef<>(S2C.OrderResult.TYPE, S2C.OrderResult.CODEC, p -> ClientNetwork.orderResult(p), false)
+            new S2CDef<>(S2C.OrderResult.TYPE, S2C.OrderResult.CODEC, p -> ClientNetwork.orderResult(p), false),
+            new S2CDef<>(S2C.CursorShape.TYPE, S2C.CursorShape.CODEC, p -> ClientNetwork.cursorShape(p), false),
+            new S2CDef<>(S2C.CursorWarp.TYPE, S2C.CursorWarp.CODEC, p -> ClientNetwork.cursorWarp(p), false)
     );
 
     public static final List<C2SDef<?>> C2S_PAYLOADS = List.of(

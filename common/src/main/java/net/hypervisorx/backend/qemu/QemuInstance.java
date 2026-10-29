@@ -349,6 +349,12 @@ final class QemuInstance implements VmInstance {
     }
 
     @Override
+    public net.hypervisorx.backend.GuestCursor cursor() {
+        RfbClient r = rfb;
+        return r == null ? null : r.cursor();
+    }
+
+    @Override
     public SerialLink gpioLink() {
         return serial;
     }

@@ -63,6 +63,11 @@ public interface VmInstance extends AutoCloseable {
         throw new BackendException("Snapshots are not supported by this backend");
     }
 
+    /** Guest's own cursor, if the display server sends it separately from the picture. Null otherwise. */
+    default GuestCursor cursor() {
+        return null;
+    }
+
     /** Puts a disc in the optical drive, or ejects it when {@code null}. */
     default void changeMedia(Path iso) throws BackendException {
         throw new BackendException("Changing media at runtime is not supported by this backend; power the machine off first");

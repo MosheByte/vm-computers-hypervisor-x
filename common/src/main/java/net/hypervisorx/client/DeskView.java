@@ -14,10 +14,10 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * The in-world "seated" view: when a screen is used, the camera glides in front of it and stays
- * locked there while the world keeps rendering around the monitor. The player does not move;
- * only the camera is moved (by {@code CameraMixin}) and narrowed a little (by {@code GameRendererMixin})
- * so the picture fills about two thirds of the view. Leaving glides the camera back to the eyes.
+ * The in-world view of a screen in use. Normally it is just a look: the camera stays at the player's
+ * eyes, turns to the screen and zooms in slightly (by {@code GameRendererMixin}), so the whole room stays
+ * in view around the monitor. For recordings ({@link #seated}) the camera glides in front of the screen
+ * (by {@code CameraMixin}) until the picture fills about two thirds of the view. Leaving turns back.
  */
 public final class DeskView {
     private static final float ENTER_SECONDS = 0.5f;
@@ -30,6 +30,10 @@ public final class DeskView {
     private static final double MIN_FOV = 36;
     /** For recordings: the picture fills this much more of the view than in normal play. */
     public static double fillBoost = 1.0;
+    /** Recordings: glide in front of the screen and fill the view, instead of looking at it from where the player stands. */
+    public static boolean seated;
+    /** A look zooms in at most this much (field of view scale). */
+    private static final double LOOK_ZOOM = 0.85;
 
     private static boolean active;
     private static UUID vm;
@@ -136,16 +140,20 @@ public final class DeskView {
         double tan = Math.tan(Math.toRadians(baseFov) / 2);
         // where a seated player's eyes would be: straight in front of the picture
         double want = Math.max(0.5, Math.max(halfH / (FILL_H * fillBoost * tan), halfW / (FILL_W * fillBoost * tan * aspect)));
-        Vec3 target = center.add(normal.scale(want));
-        Vec3 move = target.subtract(eye);
-        if (move.length() > MAX_TRAVEL) target = eye.add(move.scale(MAX_TRAVEL / move.length()));
-        BlockHitResult clip = mc.level.clip(new ClipContext(eye, target, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mc.player));
-        if (clip.getType() != HitResult.Type.MISS) target = eye.add(clip.getLocation().subtract(eye).scale(0.75));
+        Vec3 target = eye;
+        if (seated) {
+            target = center.add(normal.scale(want));
+            Vec3 move = target.subtract(eye);
+            if (move.length() > MAX_TRAVEL) target = eye.add(move.scale(MAX_TRAVEL / move.length()));
+            BlockHitResult clip = mc.level.clip(new ClipContext(eye, target, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mc.player));
+            if (clip.getType() != HitResult.Type.MISS) target = eye.add(clip.getLocation().subtract(eye).scale(0.75));
+        }
         Vec3 to = center.subtract(target);
-        double dist = Math.max(0.2, -to.dot(normal));
+        double dist = Math.max(0.2, seated ? -to.dot(normal) : to.length());
         double needTan = Math.max(halfH / (FILL_H * fillBoost * dist), halfW / (FILL_W * fillBoost * dist * aspect));
         double fov = Math.toDegrees(2 * Math.atan(needTan));
-        fovScale = Mth.clamp(fov / baseFov, MIN_FOV / baseFov, 1.0);
+        // a look only narrows the view a little; recordings zoom until the picture fills it
+        fovScale = Mth.clamp(fov / baseFov, seated ? MIN_FOV / baseFov : LOOK_ZOOM, 1.0);
         seat = target;
         lookAt = center;
         yaw = (float) (Mth.atan2(to.z, to.x) * Mth.RAD_TO_DEG) - 90f;
@@ -250,6 +258,47 @@ public final class DeskView {
     public static ScreenHits.Hit pick(UUID target, double mx, double my, int guiWidth, int guiHeight) {
         Vec3[] ray = mouseRay(mx, my, guiWidth, guiHeight);
         return ScreenHits.raycast(target, ray[0], ray[1], 24);
+    }
+
+    /**
+     * Where guest position (u, v) on the screen in use lands in the window: {x, y, size of one guest pixel}
+     * in GUI units. Null if it's not on that screen or it's behind the camera.
+     */
+    public static float[] project(UUID target, double u, double v, double pixelU, int guiWidth, int guiHeight) {
+        Vec3 p = pointAt(target, u, v);
+        Vec3 q = pointAt(target, Math.min(1, u + pixelU), v);
+        if (p == null || q == null) return null;
+        float[] a = toGui(p, guiWidth, guiHeight);
+        float[] b = toGui(q, guiWidth, guiHeight);
+        if (a == null || b == null) return null;
+        return new float[]{a[0], a[1], (float) Math.hypot(b[0] - a[0], b[1] - a[1])};
+    }
+
+    private static Vec3 pointAt(UUID target, double u, double v) {
+        for (ScreenHits.Quad q : ScreenHits.of(target)) {
+            if (anchor != null && !q.pos().equals(anchor) || u < q.u0() || u > q.u1()) continue;
+            double t = (u - q.u0()) / Math.max(1e-6, q.u1() - q.u0());
+            Vec3 top = q.tl().lerp(q.tr(), t);
+            Vec3 bottom = q.bl().lerp(q.br(), t);
+            return top.lerp(bottom, v);
+        }
+        return null;
+    }
+
+    private static float[] toGui(Vec3 p, int guiWidth, int guiHeight) {
+        Minecraft mc = Minecraft.getInstance();
+        Camera cam = mc.gameRenderer.getMainCamera();
+        Vec3 d = p.subtract(cam.getPosition());
+        Vector3f f = cam.getLookVector();
+        Vector3f u = cam.getUpVector();
+        Vector3f l = cam.getLeftVector();
+        double z = d.x * f.x() + d.y * f.y() + d.z * f.z();
+        if (z < 0.01) return null;
+        double tan = Math.tan(Math.toRadians(renderFov) / 2);
+        double aspect = mc.getWindow().getWidth() / (double) Math.max(1, mc.getWindow().getHeight());
+        double sx = -(d.x * l.x() + d.y * l.y() + d.z * l.z()) / (z * tan * aspect);
+        double sy = (d.x * u.x() + d.y * u.y() + d.z * u.z()) / (z * tan);
+        return new float[]{(float) ((sx + 1) / 2 * guiWidth), (float) ((1 - sy) / 2 * guiHeight)};
     }
 
     /** Center of the seated picture, for distance checks. */

@@ -1,3 +1,20 @@
+# HyperVisor X — 1.3.3
+
+- Using a screen in the world is now just a look: you stay where you are, the camera turns to the
+  screen with a slight zoom and the room stays in view. **Ctrl+Alt+Enter** (or the top bar) switches
+  to the full-window picture and back.
+- The mouse is captured like in VMware's or VirtualBox's own window: it moves the computer's pointer
+  and can no longer slide off the screen. **Ctrl+Alt** frees it and captures it again; clicking the
+  screen captures it too.
+- The guest's own cursor is drawn on the picture: Windows with VMware Tools (and QEMU guests) showed
+  no cursor at all. Text and link cursors keep their shape, and the cursor hides when a game in the
+  VM takes the mouse; games that keep re-centring the cursor can turn all the way around.
+- No more tearing or flicker: a frame of the VM is shown only once all of it has arrived, and the
+  smaller copies used for distant screens are refreshed right after each frame.
+- VMware: a machine that is still running (after the game crashed, or started from VMware itself) is
+  taken over as it is instead of failing to start.
+- The monitor's power light is smaller.
+
 # HyperVisor X — 1.3.2
 
 - **Guest tools, on by default for every computer.** Each engine's own drivers are put in the

@@ -36,6 +36,9 @@ public final class VmSession {
     public volatile int ramCommittedMb;
     /** players allowed to send input. server thread refreshes it every second, network threads read it. */
     public final java.util.Set<UUID> controllers = ConcurrentHashMap.newKeySet();
+    /** last cursor shape / forced position sent to viewers (stream pump thread). -1 = resend the shape. */
+    public volatile int sentCursorShape = -1;
+    public volatile int sentCursorWarp;
     private boolean cancelled;
 
     public static final class Viewer {
@@ -113,6 +116,8 @@ public final class VmSession {
     }
 
     public Viewer addViewer(ServerPlayer player, boolean local, boolean rgb565, double bytesPerSecond) {
+        // a new viewer needs the cursor shape too
+        if (!viewers.containsKey(player.getUUID())) sentCursorShape = -1;
         return viewers.computeIfAbsent(player.getUUID(), k -> new Viewer(player, new FrameStream.Viewer(local, rgb565, bytesPerSecond)));
     }
 }

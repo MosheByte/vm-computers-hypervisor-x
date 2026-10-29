@@ -13,6 +13,8 @@ public final class Framebuffer {
     public static final int MAX_DIMENSION = 7680;
 
     private final Object lock = new Object();
+    private boolean updating;
+    private long updateStart;
     private int width;
     private int height;
     private int tilesX;
@@ -85,10 +87,29 @@ public final class Framebuffer {
         return sourceFps;
     }
 
+    /**
+     * A source frame is starting to come in, in pieces (VNC rects). The stream waits for the end so viewers
+     * never see half of one frame next to half of the last one (tearing).
+     */
+    public void beginUpdate() {
+        synchronized (lock) {
+            updating = true;
+            updateStart = System.nanoTime();
+        }
+    }
+
+    /** true while a frame is half written. capped at 40 ms so a stalled source can't freeze the picture. */
+    public boolean midFrame() {
+        synchronized (lock) {
+            return updating && System.nanoTime() - updateStart < 40_000_000L;
+        }
+    }
+
     /** backends have to call this once per finished source frame (feeds the FPS readout). */
     public void frameCompleted() {
         long now = System.nanoTime();
         synchronized (lock) {
+            updating = false;
             lastWriteNanos = now;
             framesThisSecond++;
             if (now - fpsWindowStart >= 1_000_000_000L) {

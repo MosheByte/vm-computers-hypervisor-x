@@ -23,6 +23,63 @@ public final class S2C {
         return new CustomPacketPayload.Type<>(HyperVisorX.id(name));
     }
 
+    /** Guest cursor shape (ARGB, max 64x64) and whether it's visible. Empty if the guest doesn't have one. */
+    public record CursorShape(UUID vm, int width, int height, int hotX, int hotY, boolean visible, int[] argb) implements CustomPacketPayload {
+        public static final Type<CursorShape> TYPE = makeType("cursor_shape");
+        public static final StreamCodec<FriendlyByteBuf, CursorShape> CODEC = CustomPacketPayload.codec(CursorShape::write, CursorShape::new);
+
+        CursorShape(FriendlyByteBuf b) {
+            this(b.readUUID(), b.readVarInt(), b.readVarInt(), b.readVarInt(), b.readVarInt(), b.readBoolean(), readPixels(b));
+        }
+
+        private static int[] readPixels(FriendlyByteBuf b) {
+            int n = b.readVarInt();
+            if (n < 0 || n > net.hypervisorx.backend.GuestCursor.MAX_SIZE * net.hypervisorx.backend.GuestCursor.MAX_SIZE) {
+                throw new IllegalArgumentException("bad cursor size " + n);
+            }
+            int[] px = new int[n];
+            for (int i = 0; i < n; i++) px[i] = b.readInt();
+            return px;
+        }
+
+        void write(FriendlyByteBuf b) {
+            b.writeUUID(vm);
+            b.writeVarInt(width);
+            b.writeVarInt(height);
+            b.writeVarInt(hotX);
+            b.writeVarInt(hotY);
+            b.writeBoolean(visible);
+            b.writeVarInt(argb.length);
+            for (int p : argb) b.writeInt(p);
+        }
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /** Guest moved its own cursor (games keep it centred), so the controlling player's pointer follows it. */
+    public record CursorWarp(UUID vm, int x, int y) implements CustomPacketPayload {
+        public static final Type<CursorWarp> TYPE = makeType("cursor_warp");
+        public static final StreamCodec<FriendlyByteBuf, CursorWarp> CODEC = CustomPacketPayload.codec(CursorWarp::write, CursorWarp::new);
+
+        CursorWarp(FriendlyByteBuf b) {
+            this(b.readUUID(), b.readVarInt(), b.readVarInt());
+        }
+
+        void write(FriendlyByteBuf b) {
+            b.writeUUID(vm);
+            b.writeVarInt(x);
+            b.writeVarInt(y);
+        }
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
     /** Tells a viewer to (re)create its texture for {@code vm} at this size. */
     public record ScreenReset(UUID vm, int epoch, int width, int height) implements CustomPacketPayload {
         public static final Type<ScreenReset> TYPE = makeType("screen_reset");
@@ -45,14 +102,14 @@ public final class S2C {
         }
     }
 
-    /** Dirty tiles of one VM display. */
-    public record ScreenTiles(UUID vm, int epoch, List<EncodedTile> tiles) implements CustomPacketPayload {
+    /** Dirty tiles for one VM display. {@code end} marks the frame's last packet (the frame only shows once it's complete). */
+    public record ScreenTiles(UUID vm, int epoch, List<EncodedTile> tiles, boolean end) implements CustomPacketPayload {
         public static final Type<ScreenTiles> TYPE = makeType("screen_tiles");
         public static final StreamCodec<FriendlyByteBuf, ScreenTiles> CODEC = CustomPacketPayload.codec(ScreenTiles::write, ScreenTiles::new);
         private static final int MAX_TILE_BYTES = 64 * 64 * 4 + 1024;
 
         ScreenTiles(FriendlyByteBuf b) {
-            this(b.readUUID(), b.readVarInt(), readTiles(b));
+            this(b.readUUID(), b.readVarInt(), readTiles(b), b.readBoolean());
         }
 
         private static List<EncodedTile> readTiles(FriendlyByteBuf b) {
@@ -83,6 +140,7 @@ public final class S2C {
                 b.writeByte(t.mode());
                 b.writeByteArray(t.data());
             }
+            b.writeBoolean(end);
         }
 
         @Override

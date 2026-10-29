@@ -108,13 +108,21 @@ image switches the feature off per computer. Linux distributions bring their own
 - **Wi-Fi remote desktop**: sneak-use a computer that has a Wi-Fi card to pair; the laptop then
   shows and controls that machine (configurable range).
 
-### Sitting at the computer
-Right-click a screen or press **V** while looking at it. You stay in the world: the camera glides
-in front of the monitor and locks there, the room stays visible around it, and the mouse moves the
-guest's pointer on the in-world screen itself (flat, curved, spanned and video-wall screens alike).
-The VM gets *every* key including Esc and Tab. Press **Right Ctrl** (rebindable) to stand up again.
+### Using a computer
+Right-click a screen or press **V** while looking at it. You stay where you are and just look at it:
+the camera turns to the monitor with a slight zoom and the whole room stays in view. The mouse is
+captured like in a hypervisor's own window: it moves the guest's pointer on the in-world screen
+(flat, curved, spanned and video-wall screens alike) and cannot slide off it, and the guest's own
+cursor is drawn on the picture. The VM gets *every* key including Esc and Tab.
+
+| Keys | |
+|---|---|
+| **Ctrl+Alt** | free the mouse / capture it again (clicking the screen captures it too) |
+| **Ctrl+Alt+Enter** | full-window picture and back |
+| **Right Ctrl** (rebindable) | leave the computer |
+
 The floating top bar has power, reset, Ctrl+Alt+Del and snapshot buttons, the FPS, the laptop
-battery and a switch to the classic full-window view (also the default in *Settings → Focus*).
+battery and the same view switch (the full-window view can be the default in *Settings → Focus*).
 
 ### Motherboard assembly
 Right-click a computer to open its motherboard: a detailed board (an ATX gaming board for the
