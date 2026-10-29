@@ -1,3 +1,18 @@
+# HyperVisor X — 1.3.4
+
+- **Mouse in games inside the VM**: a captured mouse now sends motion, and the server applies it where
+  the guest's pointer really is. When a game re-centres the cursor (Minecraft in the VM does every
+  frame), the next motion starts from there, so the camera no longer jitters, sticks or turns the
+  wrong way. Echoes of our own pointer moves are no longer mistaken for the game's.
+- **Zoom that leans in**: using a screen turns you to it and leans the camera towards it instead of
+  narrowing the field of view, like stepping up to a real monitor. The mouse wheel (or Ctrl+Alt with
+  the wheel while the mouse is captured) zooms smoothly from where you stand to right in front of the
+  picture, with a short "Zoom 40%" readout; your last choice is kept, and the camera never goes
+  through the desk or a wall.
+- A small caption always sits in the bottom corner of the screen in use: how to free the mouse
+  (Ctrl+Alt) while it is captured, and the other keys while it is free.
+- The power light of the monitor you are using is off while you sit at it.
+
 # HyperVisor X — 1.3.3
 
 - Using a screen in the world is now just a look: you stay where you are, the camera turns to the

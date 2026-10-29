@@ -49,8 +49,9 @@ public class MonitorRenderer implements BlockEntityRenderer<MonitorBlockEntity>,
             case FLAT -> {
                 ScreenDraw.screen(pose, buffers, vm, be.getBlockPos(), 15.5f * PX, 3.5f * PX, 0.5f * PX, 12f * PX, 7f * PX - 0.002f,
                         part0, part0 + partW);
-                // power LED in the chin: lit while the linked machine runs
-                if (running(vm)) ScreenDraw.glow(pose, buffers, 7.65f * PX, 3.15f * PX, 7f * PX - 0.004f, 7.85f * PX, 3.35f * PX, 7f * PX - 0.001f, 0xFF2A8FC0);
+                // power LED in the chin: on while the linked machine runs, off while someone's sitting right at this screen
+                boolean inUse = net.hypervisorx.client.DeskView.engaged() && be.getBlockPos().equals(net.hypervisorx.client.DeskView.anchor());
+                if (running(vm) && !inUse) ScreenDraw.glow(pose, buffers, 7.65f * PX, 3.15f * PX, 7f * PX - 0.004f, 7.85f * PX, 3.35f * PX, 7f * PX - 0.001f, 0xFF2A8FC0);
             }
             case CRT -> {
                 // inside the inner bevel (x 2.9..13.1, y 2.9..10.6) so the bevel doesn't hide the picture's edges

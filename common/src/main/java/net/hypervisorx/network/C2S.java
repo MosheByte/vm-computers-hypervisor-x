@@ -40,7 +40,7 @@ public final class C2S {
 
     /** Keyboard/mouse input going to a VM. */
     public record Input(UUID vm, int kind, int a, int b, int c, int d) implements CustomPacketPayload {
-        public static final int KEY = 0, TEXT = 1, POINTER = 2, WHEEL = 3, CTRL_ALT_DEL = 4;
+        public static final int KEY = 0, TEXT = 1, POINTER = 2, WHEEL = 3, CTRL_ALT_DEL = 4, POINTER_REL = 5, WHEEL_REL = 6;
         public static final Type<Input> TYPE = makeType("input");
         public static final StreamCodec<FriendlyByteBuf, Input> CODEC = CustomPacketPayload.codec(Input::write, Input::new);
 

@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** Moves the camera to the seat in front of a screen while the in-world view is engaged ({@link DeskView}). */
+/** Leans the camera toward the screen you're using and points it at the picture ({@link DeskView}). */
 @Mixin(Camera.class)
 public abstract class CameraMixin {
     @Shadow
@@ -34,7 +34,9 @@ public abstract class CameraMixin {
         if (!DeskView.engaged()) return;
         float k = DeskView.frame();
         if (k <= 0f) return;
+        // position first, it decides where the camera looks from
+        Vec3 pos = DeskView.position(getPosition(), k);
         setRotation(DeskView.yaw(getYRot(), k), DeskView.pitch(getXRot(), k));
-        setPosition(DeskView.position(getPosition(), k));
+        setPosition(pos);
     }
 }

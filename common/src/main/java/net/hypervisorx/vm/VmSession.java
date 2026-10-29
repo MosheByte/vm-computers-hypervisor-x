@@ -36,6 +36,41 @@ public final class VmSession {
     public volatile int ramCommittedMb;
     /** players allowed to send input. server thread refreshes it every second, network threads read it. */
     public final java.util.Set<UUID> controllers = ConcurrentHashMap.newKeySet();
+    /** The guest pointer a captured mouse moves (network thread). */
+    private int pointerX = -1;
+    private int pointerY = -1;
+    private int pointerWarp;
+
+    /** player pointed right at this spot (free mouse), captured motion picks up from here. */
+    public synchronized void pointerAt(int x, int y) {
+        pointerX = x;
+        pointerY = y;
+    }
+
+    /**
+     * Moves the guest pointer by a captured mouse's motion and returns where it is now. When the guest moved
+     * its own cursor (a game re-centring it, reported by VMware), motion continues from there, so a turn in a
+     * game is never applied twice nor jumps back.
+     */
+    public synchronized int[] movePointer(net.hypervisorx.backend.VmInstance inst, int dx, int dy) {
+        net.hypervisorx.backend.GuestCursor c = inst.cursor();
+        if (c != null && c.warpVersion() != pointerWarp) {
+            pointerWarp = c.warpVersion();
+            int[] p = c.warpPosition();
+            pointerX = p[0];
+            pointerY = p[1];
+        }
+        int w = inst.framebuffer().width();
+        int h = inst.framebuffer().height();
+        if (pointerX < 0 || pointerY < 0) {
+            pointerX = w / 2;
+            pointerY = h / 2;
+        }
+        pointerX = Math.max(0, Math.min(w - 1, pointerX + dx));
+        pointerY = Math.max(0, Math.min(h - 1, pointerY + dy));
+        return new int[]{pointerX, pointerY};
+    }
+
     /** last cursor shape / forced position sent to viewers (stream pump thread). -1 = resend the shape. */
     public volatile int sentCursorShape = -1;
     public volatile int sentCursorWarp;

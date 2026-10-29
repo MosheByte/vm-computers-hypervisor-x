@@ -63,6 +63,9 @@ public class FocusScreen extends Screen {
     private double vy = -1;
     private double lastMx = Double.NaN;
     private double lastMy;
+    /** captured motion we haven't sent yet (leftover bits of a guest pixel carry over) */
+    private double relX;
+    private double relY;
     /** Ctrl+Alt is down. let go on its own = toggle capture, with Enter = toggle the full-window view */
     private boolean chord;
     private boolean chordUsed;
@@ -86,7 +89,6 @@ public class FocusScreen extends Screen {
             decided = true;
             world = HvxClientConfig.get().focusInWorld && DeskView.enter(vm);
             worldSince = System.currentTimeMillis();
-            showHint(Component.translatable("hypervisorx.focus.keys_hint", HvxKeys.RELEASE.getTranslatedKeyMessage()), 7000);
         }
         // floating toolbar pill up top: power, stop, reset, Ctrl+Alt+Del, snapshot, release
         UiKit.FlatButton power = new UiKit.FlatButton(0, 0, 22, 16, Component.empty(), () -> action(running()
@@ -217,7 +219,11 @@ public class FocusScreen extends Screen {
             capture(true, false);
         }
         if (live) drawGuestCursor(g, mouseX, mouseY);
-        if (!cinematic) hintPill(g);
+        if (!cinematic) {
+            hintPill(g);
+            cornerCaption(g);
+            zoomPill(g);
+        }
         renderToolbar(g, status, mouseX, mouseY, partialTick);
     }
 
@@ -251,7 +257,43 @@ public class FocusScreen extends Screen {
         hintUntil = System.currentTimeMillis() + millis;
     }
 
-    /** Small pill at the bottom: the keys of this screen, and what Ctrl+Alt just did. */
+    /**
+     * small quiet caption, always in a bottom corner: how to get the mouse back (or in), plus this screen's
+     * other keys while the mouse is free. nobody gets stuck inside a computer.
+     */
+    private void cornerCaption(GuiGraphics g) {
+        String text;
+        if (captured) {
+            text = Component.translatable(world ? "hypervisorx.focus.corner_captured_world" : "hypervisorx.focus.corner_captured").getString();
+        } else {
+            text = Component.translatable(world ? "hypervisorx.focus.corner_free_world" : "hypervisorx.focus.corner_free",
+                    HvxKeys.RELEASE.getTranslatedKeyMessage()).getString();
+        }
+        float scale = 0.75f;
+        int tw = (int) Math.ceil(UiKit.width(font, text, scale));
+        int w = Math.min(width - 8, tw + 10);
+        int h = 12;
+        int x = UiKit.rtl() ? width - 4 - w : 4;
+        int y = height - 4 - h;
+        UiKit.box(g, x, y, w, h, UiKit.withAlpha(0x0B0E13, 0xB0), UiKit.withAlpha(UiKit.STROKE, 0x90));
+        UiKit.textFit(g, font, text, x + 5, y + 3, w - 10, UiKit.withAlpha(0xE9EDF3, 0xE0), scale);
+    }
+
+    /** flashes "Zoom 40%" for a sec after the wheel moves the camera */
+    private void zoomPill(GuiGraphics g) {
+        if (!world) return;
+        long since = System.currentTimeMillis() - DeskView.zoomChangedAt();
+        if (since > 1200) return;
+        float a = Mth.clamp((1200 - since) / 300f, 0f, 1f);
+        String text = Component.translatable("hypervisorx.focus.zoom", Math.round(DeskView.zoomTarget() * 100)).getString();
+        int w = font.width(text) + 16;
+        int x = (width - w) / 2;
+        int y = height / 2 + 40;
+        UiKit.box(g, x, y, w, 16, UiKit.withAlpha(0x171B22, (int) (0xD9 * a)), UiKit.withAlpha(UiKit.STROKE, (int) (0xD9 * a)));
+        g.drawCenteredString(font, text, width / 2, y + 4, UiKit.withAlpha(0xE9EDF3, Math.max(8, (int) (255 * a))));
+    }
+
+    /** little pill at the bottom saying what Ctrl+Alt just did */
     private void hintPill(GuiGraphics g) {
         if (hint == null) return;
         float a = Mth.clamp((hintUntil - System.currentTimeMillis()) / 600f, 0f, 1f);
@@ -425,9 +467,13 @@ public class FocusScreen extends Screen {
             setCursorHidden(false);
             captured = true;
             lastMx = Double.NaN;
+            relX = relY = 0;
             GLFW.glfwSetInputMode(window, GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_DISABLED);
             if (GLFW.glfwRawMouseMotionSupported()) GLFW.glfwSetInputMode(window, GLFW.GLFW_RAW_MOUSE_MOTION, GLFW.GLFW_TRUE);
-            sendVirtual(true);
+            // guest pointer starts where the drawn cursor is, motion carries on from there
+            lastVmX = (int) vx;
+            lastVmY = (int) vy;
+            Services.PLATFORM.sendToServer(new C2S.Input(vm, C2S.Input.POINTER, lastVmX, lastVmY, buttons, 0));
             if (announce) showHint(Component.translatable("hypervisorx.focus.captured"), 3500);
         } else {
             captured = false;
@@ -436,7 +482,7 @@ public class FocusScreen extends Screen {
             cursorHidden = false;
             if (buttons != 0) {
                 buttons = 0;
-                sendVirtual(true);
+                sendMotion(true);
             }
             if (announce) showHint(Component.translatable("hypervisorx.focus.released_mouse"), 3500);
         }
@@ -449,15 +495,21 @@ public class FocusScreen extends Screen {
         vy = y;
     }
 
-    private void sendVirtual(boolean force) {
+    /**
+     * sends the motion piled up since the last packet, whole guest pixels only (the rest carries over).
+     * the server applies it where the guest pointer really is, since a game may have yanked it back meanwhile.
+     */
+    private void sendMotion(boolean force) {
         long now = System.nanoTime();
-        int x = (int) vx;
-        int y = (int) vy;
-        if (!force && (now - lastPointer < 8_000_000L || (x == lastVmX && y == lastVmY))) return;
+        int dx = (int) relX;
+        int dy = (int) relY;
+        if (!force && (now - lastPointer < 8_000_000L || dx == 0 && dy == 0)) return;
         lastPointer = now;
-        lastVmX = x;
-        lastVmY = y;
-        Services.PLATFORM.sendToServer(new C2S.Input(vm, C2S.Input.POINTER, x, y, buttons, 0));
+        relX -= dx;
+        relY -= dy;
+        lastVmX = (int) vx;
+        lastVmY = (int) vy;
+        Services.PLATFORM.sendToServer(new C2S.Input(vm, C2S.Input.POINTER_REL, dx, dy, buttons, 0));
     }
 
     @Override
@@ -475,18 +527,22 @@ public class FocusScreen extends Screen {
         // one window width of mouse travel = the whole guest screen
         int[] size = guestSize();
         double k = size[0] / (double) Math.max(1, width);
-        vx = Mth.clamp(vx + (mx - lastMx) * k, 0, size[0] - 1);
-        vy = Mth.clamp(vy + (my - lastMy) * k, 0, size[1] - 1);
+        double dx = (mx - lastMx) * k;
+        double dy = (my - lastMy) * k;
+        vx = Mth.clamp(vx + dx, 0, size[0] - 1);
+        vy = Mth.clamp(vy + dy, 0, size[1] - 1);
+        relX += dx;
+        relY += dy;
         lastMx = mx;
         lastMy = my;
-        sendVirtual(false);
+        sendMotion(false);
     }
 
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
         if (captured) {
             buttons |= rfbBit(button);
-            sendVirtual(true);
+            sendMotion(true);
             return true;
         }
         if (slide > 0.5f && mx >= pillX && mx < pillX + pillW && my >= pillY() && my < pillY() + PILL_H) return super.mouseClicked(mx, my, button);
@@ -500,7 +556,7 @@ public class FocusScreen extends Screen {
     public boolean mouseReleased(double mx, double my, int button) {
         if ((buttons & rfbBit(button)) == 0) return super.mouseReleased(mx, my, button);
         buttons &= ~rfbBit(button);
-        if (captured) sendVirtual(true);
+        if (captured) sendMotion(true);
         else sendPointer(mx, my, true);
         return true;
     }
@@ -513,12 +569,18 @@ public class FocusScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mx, double my, double scrollX, double scrollY) {
-        if (scrollY == 0 || !captured && !insideVm(mx, my)) return false;
+        if (scrollY == 0) return false;
+        // wheel zooms the in-world view while the mouse is free (or Ctrl+Alt is held), otherwise it scrolls the guest
+        if (world && (!captured || chord)) {
+            if (chord) chordUsed = true;
+            DeskView.zoomBy(Mth.clamp(scrollY, -3, 3) * 0.1);
+            return true;
+        }
+        if (!captured) return false;
         // touchpads spam tiny fractional deltas, so only whole notches go to the guest (5 per event max)
         int steps = wheel.add(scrollY);
-        int[] p = captured ? new int[]{(int) vx, (int) vy} : toVm(mx, my);
         for (int i = 0; i < Math.min(5, Math.abs(steps)); i++) {
-            Services.PLATFORM.sendToServer(new C2S.Input(vm, C2S.Input.WHEEL, p[0], p[1], buttons, steps > 0 ? 1 : -1));
+            Services.PLATFORM.sendToServer(new C2S.Input(vm, C2S.Input.WHEEL_REL, 0, 0, buttons, steps > 0 ? 1 : -1));
         }
         return true;
     }
