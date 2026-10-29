@@ -310,7 +310,11 @@ public final class RfbClient implements AutoCloseable {
                 }
                 case ENC_CURSOR -> readRichCursor(x, y, w, h);
                 case ENC_VMW_CURSOR -> readVmwareCursor(x, y, w, h);
-                case ENC_VMW_CURSOR_STATE -> cursor.setVisible((in.readUnsignedShort() & 1) != 0);
+                case ENC_VMW_CURSOR_STATE -> {
+                    int state = in.readUnsignedShort();
+                    cursor.setAbsolute((state & 2) != 0);
+                    cursor.setVisible((state & 1) != 0);
+                }
                 case ENC_VMW_CURSOR_POSITION -> {
                     // only warp when the guest moved the cursor itself, an echo of our own motion would yank it back
                     if (!recentlySent(x, y)) cursor.warp(x, y);

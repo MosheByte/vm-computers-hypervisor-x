@@ -58,7 +58,7 @@ jobs:
           cp neoforge/build/libs/hypervisorx-neoforge-*.jar fabric/build/libs/hypervisorx-fabric-*.jar dist/
           rm -f dist/*-sources.jar
 
-      - name: Version without the tag's "v"
+      - name: Strip the "v" off the tag
         id: ver
         run: echo "number=${VERSION#v}" >> "$GITHUB_OUTPUT"
         env:
