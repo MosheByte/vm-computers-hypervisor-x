@@ -32,6 +32,11 @@ public final class HvxClientConfig {
     public int pipCorner = 0;
     public float pipScale = 0.30f;
     public boolean focusZoomAnimation = true;
+    /**
+     * In-world screens fill the whole panel edge to edge (so a 4:3 desktop gets stretched on a 16:9
+     * monitor) instead of keeping the guest's aspect ratio with black bars on the sides.
+     */
+    public boolean fillScreens = true;
     /** Using a screen keeps you in the world (camera sits at the monitor) instead of going full-window. */
     public boolean focusInWorld = true;
 

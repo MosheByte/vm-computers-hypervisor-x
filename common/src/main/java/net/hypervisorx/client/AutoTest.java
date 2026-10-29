@@ -60,6 +60,13 @@ public final class AutoTest {
     /** Long guest installs (Windows): sit in focus mode and grab a progress shot every 2 minutes. */
     private static final boolean LONG_RUN = !TEST_IMAGE.isEmpty() && TEST_OS != GuestOs.LINUX;
     private static String testImageName = "TinyCore-16.iso";
+    /**
+     * -Dhvx.video=true (with a Windows test image): after boot it waits for a hvx-video-prep file in the game
+     * folder (pulls the tower's parts, hides the HUD, flies to the first camera spot), then for hvx-video-go,
+     * then plays a scripted 30 second scene to screen-record.
+     */
+    private static final boolean VIDEO = Boolean.getBoolean("hvx.video");
+    private static boolean videoPrepped;
     private static int progressShots;
     private static final String CAPTURE_TITLE = "HyperVisor X capture test";
     private static int stage;
@@ -349,6 +356,10 @@ public final class AutoTest {
                         });
                     }
                     if (ticks == 40) teleport(mc, 0.6, 0.4, -1.6, 180f, 14f);
+                    if (LONG_RUN && VIDEO && vmwareVm != null) {
+                        videoWait(mc);
+                        return;
+                    }
                     if (LONG_RUN && vmwareVm != null) {
                         // watch the whole install full screen, a shot every 2 min, status every 10s
                         if (ticks == 80) mc.setScreen(new FocusScreen(vmwareVm, false));
@@ -393,6 +404,7 @@ public final class AutoTest {
                         }
                     }
                 }
+                case 30 -> videoScene(mc);
                 case 12 -> {
                     String p = "hvx-" + BACKEND + "-";
                     if (ticks == 1) shot(mc, p + "world.png");
@@ -479,6 +491,187 @@ public final class AutoTest {
             ServerPlayer sp = server.getPlayerList().getPlayer(self);
             if (sp != null) sp.teleportTo(sp.serverLevel(), x, c.y - 0.6, z, yaw, 22f);
         });
+    }
+
+    // ------------------------------------------------------------------------------------ video scene
+
+    private static void videoWait(Minecraft mc) {
+        var st = ClientVmCache.get(vmwareVm);
+        if (ticks % 200 == 0) log("video: vm " + (st == null ? "none" : st.state() + " " + st.width() + "x" + st.height() + " " + Math.round(st.fps()) + " fps"));
+        if (ticks % 10 != 0) return;
+        Path dir = mc.gameDirectory.toPath();
+        try {
+            if (!videoPrepped && Files.deleteIfExists(dir.resolve("hvx-video-prep"))) {
+                videoPrep(mc);
+                videoPrepped = true;
+                log("video: prepared");
+            }
+            if (videoPrepped && Files.deleteIfExists(dir.resolve("hvx-video-go"))) {
+                log("video: action");
+                stage = 30;
+                ticks = 0;
+            }
+        } catch (java.io.IOException e) {
+            log("video: " + e);
+        }
+    }
+
+    /** Tower parts back into the inventory (the scene puts them in again), HUD off, first camera spot. */
+    private static void videoPrep(Minecraft mc) {
+        mc.options.hideGui = true;
+        net.hypervisorx.config.HvxClientConfig.get().showFpsOverlay = false;
+        FocusScreen.cinematic = true;
+        DeskView.fillBoost = 1.6;
+        mc.player.getAbilities().flying = true;
+        var server = mc.getSingleplayerServer();
+        UUID self = mc.player.getUUID();
+        server.execute(() -> {
+            ServerPlayer sp = server.getPlayerList().getPlayer(self);
+            if (sp == null || !(sp.level().getBlockEntity(DemoBuilder.lastTower) instanceof ComputerBlockEntity tower)) return;
+            DemoBuilder.buildDesk(sp.serverLevel(), DemoBuilder.lastTower, net.minecraft.core.Direction.SOUTH);
+            sp.getAbilities().flying = true;
+            sp.onUpdateAbilities();
+            sp.getInventory().clearContent();
+            for (int slot : new int[]{0, 1, 2, 5, 6}) {
+                net.minecraft.world.item.ItemStack s = tower.parts().removeItemNoUpdate(slot);
+                if (!s.isEmpty()) sp.getInventory().add(s);
+            }
+            tower.parts().setChanged();
+            server.overworld().setDayTime(6000);
+            server.overworld().setWeatherParameters(6000, 0, false, false);
+        });
+        Vec3 s = towerRel(V_START);
+        var srv = mc.getSingleplayerServer();
+        UUID me = mc.player.getUUID();
+        srv.execute(() -> {
+            ServerPlayer sp = srv.getPlayerList().getPlayer(me);
+            if (sp != null) sp.teleportTo(sp.serverLevel(), s.x, s.y, s.z, V_START.yaw, V_START.pitch);
+        });
+    }
+
+    /** Camera spots are relative to the gaming tower's block corner (x east, z south, room faces south). */
+    private static Vec3 towerRel(Pose p) {
+        BlockPos t = DemoBuilder.lastTower;
+        return new Vec3(t.getX() + p.x, t.getY() + p.y, t.getZ() + p.z);
+    }
+
+    private record Pose(double x, double y, double z, float yaw, float pitch) {
+        /** Standing at (x, y, z) relative to the start, looking at (tx, ty, tz). */
+        static Pose looking(double x, double y, double z, double tx, double ty, double tz) {
+            double dx = tx - x, dy = ty - (y + 1.62), dz = tz - z;
+            float yaw = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0);
+            float pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
+            return new Pose(x, y, z, yaw, pitch);
+        }
+    }
+
+    private static final Pose V_START = Pose.looking(2.5, 0.25, 6.4, 2.5, 1.35, 0.5);
+    private static final Pose V_DESK = Pose.looking(2.5, 0.05, 2.5, 2.5, 1.45, 0.5);
+    private static final Pose V_TOWER = Pose.looking(1.4, 0.05, 2.7, 0.5, 0.7, 0.5);
+    private static final Pose V_WIDE = Pose.looking(4.7, 1.0, 6.4, 1.4, 1.0, 0.4);
+
+    /** Eased camera move from a to b between two ticks. Client side, the server just follows. */
+    private static void glide(Minecraft mc, Pose a, Pose b, int from, int to) {
+        if (ticks < from || ticks > to || mc.screen != null) return;
+        double t = (ticks - from) / (double) (to - from);
+        t = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        Vec3 pa = towerRel(a), pb = towerRel(b);
+        double x = pa.x + (pb.x - pa.x) * t, y = pa.y + (pb.y - pa.y) * t, z = pa.z + (pb.z - pa.z) * t;
+        float yaw = (float) (a.yaw + net.minecraft.util.Mth.wrapDegrees(b.yaw - a.yaw) * t);
+        float pitch = (float) (a.pitch + (b.pitch - a.pitch) * t);
+        mc.player.setDeltaMovement(Vec3.ZERO);
+        mc.player.setPos(x, y, z);
+        mc.player.setYRot(yaw);
+        mc.player.setYHeadRot(yaw);
+        mc.player.setXRot(pitch);
+    }
+
+    private static void vmKey(Minecraft mc, int glfwKey, boolean down) {
+        var server = mc.getSingleplayerServer();
+        UUID vm = vmwareVm;
+        server.execute(() -> {
+            var m = VmManager.get();
+            var session = m == null || vm == null ? null : m.session(vm);
+            if (session != null && session.instance() != null) session.instance().key(glfwKey, down);
+        });
+    }
+
+    /** GLFW key for a lowercase letter, digit, space or basic punctuation (VMware wants keys, not text). */
+    private static int glfwKey(char c) {
+        if (c >= 'a' && c <= 'z') return 'A' + (c - 'a');
+        if (c >= '0' && c <= '9') return c;
+        return switch (c) {
+            case ' ' -> 32;
+            case ',' -> 44;
+            case '.' -> 46;
+            default -> 32;
+        };
+    }
+
+    /** Types {@code s} starting at tick {@code from}: press on even ticks, release on odd (VMware drops instant taps). */
+    private static void typeKeys(Minecraft mc, String s, int from) {
+        int i = (ticks - from) / 2;
+        if (ticks < from || i >= s.length()) return;
+        vmKey(mc, glfwKey(s.charAt(i)), (ticks - from) % 2 == 0);
+    }
+
+    private static void vmText(Minecraft mc, String s) {
+        var server = mc.getSingleplayerServer();
+        UUID vm = vmwareVm;
+        server.execute(() -> {
+            var m = VmManager.get();
+            var session = m == null || vm == null ? null : m.session(vm);
+            if (session != null && session.instance() != null) s.codePoints().forEach(cp -> session.instance().text(cp));
+        });
+    }
+
+    private static final String V_TYPED = "hi reddit, typing this from inside minecraft";
+
+    /** 30 seconds at 20 tps. */
+    private static void videoScene(Minecraft mc) {
+        glide(mc, V_START, V_DESK, 0, 50);
+        if (ticks == 52) mc.setScreen(new FocusScreen(vmwareVm, false));
+        // start menu, search "notepad", open it
+        if (ticks == 70) vmKey(mc, 343, true);
+        if (ticks == 72) vmKey(mc, 343, false);
+        typeKeys(mc, "notepad", 84);
+        if (ticks == 104) vmKey(mc, 257, true);
+        if (ticks == 105) vmKey(mc, 257, false);
+        // maximize (Win+Up) and bump the text way up so you can read it on the in-world screen
+        if (ticks == 128) vmKey(mc, 343, true);
+        if (ticks == 129) vmKey(mc, 265, true);
+        if (ticks == 130) vmKey(mc, 265, false);
+        if (ticks == 131) vmKey(mc, 343, false);
+        if (ticks == 134) vmKey(mc, 341, true);
+        for (int i = 0; i < 14; i++) {
+            if (ticks == 136 + i * 2) vmKey(mc, 61, true);
+            if (ticks == 137 + i * 2) vmKey(mc, 61, false);
+        }
+        if (ticks == 165) vmKey(mc, 341, false);
+        typeKeys(mc, V_TYPED, 168);
+        if (ticks == 262) mc.setScreen(null);
+        glide(mc, V_DESK, V_TOWER, 270, 298);
+        if (ticks == 300) openPcMenu(mc, DemoBuilder.lastTower);
+        if (mc.screen instanceof net.hypervisorx.client.screen.ComputerScreen cs && cs.board() != null) {
+            var b = cs.board();
+            if (ticks == 310) b.testInstall(0);
+            if (ticks == 332) b.testInstall(1);
+            if (ticks == 344) b.testInstall(2);
+            if (ticks == 358) b.testInstall(5);
+            if (ticks == 376) b.testInstall(6);
+            if (ticks >= 308 && ticks <= 448) {
+                double t = (ticks - 308) / 140.0;
+                t = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+                b.testView((float) (14 - 40 * t), (float) (50 - 8 * t));
+            }
+        }
+        if (ticks == 456) mc.setScreen(null);
+        glide(mc, V_TOWER, V_WIDE, 460, 598);
+        if (ticks == 600) {
+            log("video: scene finished");
+            stage = 31;
+            ticks = 0;
+        }
     }
 
     /** Sends a pointer event to the VMware guest down the same server path player input takes. */

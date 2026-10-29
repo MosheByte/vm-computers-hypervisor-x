@@ -147,6 +147,75 @@ public final class DemoBuilder {
         return err != null ? err : Component.literal("HyperVisor X showroom built - booting the embedded Linux MicroVM...");
     }
 
+    /**
+     * Swaps the showroom for a small room around the gaming tower (tower keeps running): wooden desk with
+     * a 24" monitor, keyboard, mouse, speakers and a plant, plus a chair, floor lamp, bookshelves and a
+     * window wall. {@code facing} is where the displays point (at the camera). Returns the monitor pos.
+     */
+    public static BlockPos buildDesk(ServerLevel level, BlockPos tower, Direction facing) {
+        Direction right = facing.getCounterClockWise();
+        java.util.function.BiFunction<int[], Integer, BlockPos> at = (ad, y) -> tower.relative(right, ad[0]).relative(facing, ad[1]).above(y);
+        for (int a = -4; a <= 8; a++) {
+            for (int d = -7; d <= 3; d++) {
+                for (int y = 0; y <= 5; y++) {
+                    BlockPos p = at.apply(new int[]{a, d}, y);
+                    if (!p.equals(tower)) level.setBlock(p, Blocks.AIR.defaultBlockState(), 3);
+                }
+            }
+        }
+        for (int a = -3; a <= 6; a++) {
+            for (int d = -1; d <= 6; d++) level.setBlockAndUpdate(at.apply(new int[]{a, d}, -1), Blocks.DARK_OAK_PLANKS.defaultBlockState());
+        }
+        // back wall with a window band, log pillars at the ends
+        for (int a = -3; a <= 6; a++) {
+            for (int y = 0; y <= 4; y++) {
+                boolean pillar = a == -3 || a == 6;
+                boolean window = !pillar && a >= -1 && a <= 5 && (y == 2 || y == 3);
+                level.setBlockAndUpdate(at.apply(new int[]{a, -1}, y), pillar ? Blocks.STRIPPED_DARK_OAK_LOG.defaultBlockState()
+                        : window ? Blocks.GLASS_PANE.defaultBlockState() : Blocks.DARK_OAK_PLANKS.defaultBlockState());
+            }
+        }
+        // side walls: bookshelves on the left, a window on the right
+        for (int d = 0; d <= 3; d++) {
+            for (int y = 0; y <= 3; y++) {
+                level.setBlockAndUpdate(at.apply(new int[]{-3, d}, y), y < 3 ? Blocks.BOOKSHELF.defaultBlockState() : Blocks.DARK_OAK_PLANKS.defaultBlockState());
+                boolean window = (d == 1 || d == 2) && (y == 1 || y == 2);
+                level.setBlockAndUpdate(at.apply(new int[]{6, d}, y), window ? Blocks.GLASS_PANE.defaultBlockState() : Blocks.DARK_OAK_PLANKS.defaultBlockState());
+            }
+        }
+        // desk: slab top, panel on the free end (the tower props up the other end)
+        for (int a = 1; a <= 3; a++) {
+            for (int d = 0; d <= 1; d++) {
+                level.setBlockAndUpdate(at.apply(new int[]{a, d}, 0), Blocks.DARK_OAK_SLAB.defaultBlockState()
+                        .setValue(net.minecraft.world.level.block.SlabBlock.TYPE, net.minecraft.world.level.block.state.properties.SlabType.TOP));
+            }
+        }
+        for (int d = 0; d <= 1; d++) {
+            level.setBlockAndUpdate(at.apply(new int[]{4, d}, 0), Blocks.DARK_OAK_TRAPDOOR.defaultBlockState()
+                    .setValue(net.minecraft.world.level.block.TrapDoorBlock.OPEN, true)
+                    .setValue(net.minecraft.world.level.block.TrapDoorBlock.FACING, right));
+        }
+        BlockPos monitor = at.apply(new int[]{2, 0}, 1);
+        place(level, monitor, HvxBlocks.MONITOR.get(), facing);
+        link(level, monitor, tower);
+        place(level, at.apply(new int[]{1, 0}, 1), HvxBlocks.SPEAKERS.get(), facing);
+        place(level, at.apply(new int[]{3, 0}, 1), HvxBlocks.SPEAKERS.get(), facing);
+        place(level, at.apply(new int[]{2, 1}, 1), HvxBlocks.KEYBOARD.get(), facing);
+        place(level, at.apply(new int[]{3, 1}, 1), HvxBlocks.MOUSE.get(), facing);
+        level.setBlockAndUpdate(at.apply(new int[]{5, 0}, 0), Blocks.POTTED_AZALEA.defaultBlockState());
+        // chair and rug
+        for (int a = 1; a <= 3; a++) {
+            for (int d = 2; d <= 4; d++) level.setBlockAndUpdate(at.apply(new int[]{a, d}, 0), Blocks.GRAY_CARPET.defaultBlockState());
+        }
+        level.setBlockAndUpdate(at.apply(new int[]{2, 3}, 0), Blocks.DARK_OAK_STAIRS.defaultBlockState()
+                .setValue(net.minecraft.world.level.block.StairBlock.FACING, facing));
+        // floor lamp beside the tower
+        level.setBlockAndUpdate(at.apply(new int[]{-2, 0}, 0), Blocks.DARK_OAK_FENCE.defaultBlockState());
+        level.setBlockAndUpdate(at.apply(new int[]{-2, 0}, 1), Blocks.DARK_OAK_FENCE.defaultBlockState());
+        level.setBlockAndUpdate(at.apply(new int[]{-2, 0}, 2), Blocks.LANTERN.defaultBlockState());
+        return monitor;
+    }
+
     private static void place(ServerLevel level, BlockPos pos, Block block, Direction facing) {
         BlockState s = block.defaultBlockState();
         if (s.hasProperty(HorizontalEntityBlock.FACING)) s = s.setValue(HorizontalEntityBlock.FACING, facing);

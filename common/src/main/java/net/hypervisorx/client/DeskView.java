@@ -28,6 +28,8 @@ public final class DeskView {
     /** The camera leans in at most this far from the eyes (blocks). */
     private static final double MAX_TRAVEL = 1.5;
     private static final double MIN_FOV = 36;
+    /** For recordings: the picture fills this much more of the view than in normal play. */
+    public static double fillBoost = 1.0;
 
     private static boolean active;
     private static UUID vm;
@@ -133,7 +135,7 @@ public final class DeskView {
         double aspect = mc.getWindow().getWidth() / (double) Math.max(1, mc.getWindow().getHeight());
         double tan = Math.tan(Math.toRadians(baseFov) / 2);
         // where a seated player's eyes would be: straight in front of the picture
-        double want = Math.max(0.5, Math.max(halfH / (FILL_H * tan), halfW / (FILL_W * tan * aspect)));
+        double want = Math.max(0.5, Math.max(halfH / (FILL_H * fillBoost * tan), halfW / (FILL_W * fillBoost * tan * aspect)));
         Vec3 target = center.add(normal.scale(want));
         Vec3 move = target.subtract(eye);
         if (move.length() > MAX_TRAVEL) target = eye.add(move.scale(MAX_TRAVEL / move.length()));
@@ -141,7 +143,7 @@ public final class DeskView {
         if (clip.getType() != HitResult.Type.MISS) target = eye.add(clip.getLocation().subtract(eye).scale(0.75));
         Vec3 to = center.subtract(target);
         double dist = Math.max(0.2, -to.dot(normal));
-        double needTan = Math.max(halfH / (FILL_H * dist), halfW / (FILL_W * dist * aspect));
+        double needTan = Math.max(halfH / (FILL_H * fillBoost * dist), halfW / (FILL_W * fillBoost * dist * aspect));
         double fov = Math.toDegrees(2 * Math.atan(needTan));
         fovScale = Mth.clamp(fov / baseFov, MIN_FOV / baseFov, 1.0);
         seat = target;
