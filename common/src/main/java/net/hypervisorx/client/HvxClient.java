@@ -188,6 +188,7 @@ public final class HvxClient {
             ScreenTextureManager.clear();
             VmAudioPlayer.clear();
             ClientVmCache.clear();
+            GuestCursors.clear();
             ScreenTracker.clear();
             ScreenHits.clear();
             DeskView.reset();

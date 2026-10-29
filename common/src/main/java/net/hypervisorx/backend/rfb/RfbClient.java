@@ -20,6 +20,8 @@ import java.util.concurrent.locks.LockSupport;
  * Small, fast RFB 3.3/3.7/3.8 (VNC) client for the QEMU and VMware displays.
  * <ul>
  *   <li>Encodings: Raw, CopyRect, DesktopSize, ExtendedDesktopSize.</li>
+ *   <li>Cursor: the standard rich cursor plus VMware's cursor shape, state and position. That's the guest's
+ *   own cursor, which guests with their drivers installed stop painting into the picture.</li>
  *   <li>QEMU extensions: extended key events (scan codes) and audio capture (PCM over VNC).</li>
  *   <li>Auth: None and classic VNC (DES challenge).</li>
  * </ul>
@@ -43,6 +45,10 @@ public final class RfbClient implements AutoCloseable {
     private static final int ENC_EXTENDED_DESKTOP_SIZE = -308;
     private static final int ENC_QEMU_EXT_KEY = -258;
     private static final int ENC_QEMU_AUDIO = -259;
+    private static final int ENC_CURSOR = -239;
+    private static final int ENC_VMW_CURSOR = 0x574d5664;
+    private static final int ENC_VMW_CURSOR_STATE = 0x574d5665;
+    private static final int ENC_VMW_CURSOR_POSITION = 0x574d5666;
 
     private final String host;
     private final int port;
@@ -63,6 +69,7 @@ public final class RfbClient implements AutoCloseable {
     private Thread reader;
     private byte[] rowBuffer = new byte[0];
     private int[] pixelBuffer = new int[0];
+    private final net.hypervisorx.backend.GuestCursor cursor = new net.hypervisorx.backend.GuestCursor();
 
     public RfbClient(String host, int port, String password, Framebuffer framebuffer, int targetFps, Listener listener) {
         this.host = host;
@@ -173,7 +180,8 @@ public final class RfbClient implements AutoCloseable {
         out.writeByte(0);
         out.write(new byte[3]);
 
-        int[] encodings = {ENC_COPYRECT, ENC_RAW, ENC_DESKTOP_SIZE, ENC_EXTENDED_DESKTOP_SIZE, ENC_QEMU_EXT_KEY, ENC_QEMU_AUDIO};
+        int[] encodings = {ENC_COPYRECT, ENC_RAW, ENC_DESKTOP_SIZE, ENC_EXTENDED_DESKTOP_SIZE, ENC_QEMU_EXT_KEY, ENC_QEMU_AUDIO,
+                ENC_VMW_CURSOR, ENC_VMW_CURSOR_STATE, ENC_VMW_CURSOR_POSITION, ENC_CURSOR};
         out.writeByte(2);
         out.writeByte(0);
         out.writeShort(encodings.length);
@@ -236,6 +244,7 @@ public final class RfbClient implements AutoCloseable {
                                 out.flush();
                             }
                         }
+                        framebuffer.beginUpdate();
                         readFramebufferUpdate();
                         framebuffer.frameCompleted();
                         if (!early) {
@@ -299,6 +308,10 @@ public final class RfbClient implements AutoCloseable {
                     in.skipNBytes(3 + screens * 16L);
                     if (w > 0 && h > 0) framebuffer.resize(w, h);
                 }
+                case ENC_CURSOR -> readRichCursor(x, y, w, h);
+                case ENC_VMW_CURSOR -> readVmwareCursor(x, y, w, h);
+                case ENC_VMW_CURSOR_STATE -> cursor.setVisible((in.readUnsignedShort() & 1) != 0);
+                case ENC_VMW_CURSOR_POSITION -> cursor.warp(x, y);
                 case ENC_QEMU_EXT_KEY -> extKeySupported = true;
                 case ENC_QEMU_AUDIO -> {
                     audioSupported = true;
@@ -324,6 +337,64 @@ public final class RfbClient implements AutoCloseable {
                 framebuffer.writeRgb(x, y + row, w, 1, pixelBuffer, 0, w);
             }
         }
+    }
+
+    /** Standard cursor: pixels in our format, then a 1-bit opacity mask per pixel. */
+    private void readRichCursor(int hotX, int hotY, int w, int h) throws IOException {
+        if (w == 0 || h == 0) {
+            cursor.setVisible(false);
+            return;
+        }
+        byte[] px = new byte[w * h * 4];
+        in.readFully(px);
+        int stride = (w + 7) / 8;
+        byte[] mask = new byte[stride * h];
+        in.readFully(mask);
+        int[] argb = new int[w * h];
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                int i = y * w + x;
+                int o = i * 4;
+                boolean opaque = (mask[y * stride + x / 8] & (0x80 >> (x % 8))) != 0;
+                argb[i] = opaque ? 0xFF000000 | (px[o + 2] & 0xFF) << 16 | (px[o + 1] & 0xFF) << 8 | (px[o] & 0xFF) : 0;
+            }
+        }
+        cursor.setShape(w, h, hotX, hotY, argb);
+        cursor.setVisible(true);
+    }
+
+    /** VMware cursor: old-school AND/XOR pair in our pixel format, or 8-bit RGBA with alpha. */
+    private void readVmwareCursor(int hotX, int hotY, int w, int h) throws IOException {
+        int type = in.readUnsignedByte();
+        in.readUnsignedByte();
+        int n = w * h;
+        int[] argb = new int[n];
+        if (type == 1) {
+            byte[] rgba = new byte[n * 4];
+            in.readFully(rgba);
+            for (int i = 0; i < n; i++) {
+                int o = i * 4;
+                argb[i] = (rgba[o + 3] & 0xFF) << 24 | (rgba[o] & 0xFF) << 16 | (rgba[o + 1] & 0xFF) << 8 | (rgba[o + 2] & 0xFF);
+            }
+        } else {
+            byte[] and = new byte[n * 4];
+            byte[] xor = new byte[n * 4];
+            in.readFully(and);
+            in.readFully(xor);
+            for (int i = 0; i < n; i++) {
+                int o = i * 4;
+                int a = (and[o + 2] & 0xFF) << 16 | (and[o + 1] & 0xFF) << 8 | (and[o] & 0xFF);
+                int x = (xor[o + 2] & 0xFF) << 16 | (xor[o + 1] & 0xFF) << 8 | (xor[o] & 0xFF);
+                // AND 0 = XOR colour, AND 1 + XOR 0 = see-through, AND 1 + XOR 1 = invert screen (we just draw black)
+                argb[i] = a == 0 ? 0xFF000000 | x : x == 0 ? 0 : 0xFF000000;
+            }
+        }
+        if (n > 0) cursor.setShape(w, h, hotX, hotY, argb);
+    }
+
+    /** Guest cursor: shape, shown/hidden, and any positions the guest forced. */
+    public net.hypervisorx.backend.GuestCursor cursor() {
+        return cursor;
     }
 
     private void readQemuServerMessage() throws IOException {

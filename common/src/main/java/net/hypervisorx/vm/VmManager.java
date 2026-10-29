@@ -629,6 +629,7 @@ public final class VmManager {
                 if (s.viewers.isEmpty()) continue;
                 FrameStream stream = s.stream();
                 stream.commit();
+                sendCursor(s);
                 for (VmSession.Viewer v : s.viewers.values()) {
                     if (v.player.hasDisconnected()) {
                         s.viewers.remove(v.player.getUUID());
@@ -638,13 +639,41 @@ public final class VmManager {
                     if (batch.reset()) {
                         Services.PLATFORM.sendToPlayer(v.player, new S2C.ScreenReset(s.record.id, batch.epoch(), batch.width(), batch.height()));
                     }
-                    for (List<EncodedTile> packet : batch.packets()) {
-                        Services.PLATFORM.sendToPlayer(v.player, new S2C.ScreenTiles(s.record.id, batch.epoch(), packet));
+                    List<List<EncodedTile>> packets = batch.packets();
+                    for (int i = 0; i < packets.size(); i++) {
+                        Services.PLATFORM.sendToPlayer(v.player, new S2C.ScreenTiles(s.record.id, batch.epoch(), packets.get(i),
+                                i == packets.size() - 1));
                     }
                 }
             }
         } catch (Throwable t) {
             HyperVisorX.LOG.error("Stream pump error", t);
+        }
+    }
+
+    /** shape changes go to every viewer. positions the guest forced only go to controllers (they're the ones moving the pointer). */
+    private void sendCursor(VmSession s) {
+        VmInstance inst = s.instance();
+        net.hypervisorx.backend.GuestCursor c = inst == null ? null : inst.cursor();
+        if (c == null) return;
+        int shape = c.shapeVersion();
+        if (shape != s.sentCursorShape && c.hasShape()) {
+            s.sentCursorShape = shape;
+            int[] snap = c.snapshot();
+            S2C.CursorShape p = new S2C.CursorShape(s.record.id, snap[0], snap[1], snap[2], snap[3], snap[4] != 0,
+                    java.util.Arrays.copyOfRange(snap, 5, snap.length));
+            for (VmSession.Viewer v : s.viewers.values()) {
+                if (!v.player.hasDisconnected()) Services.PLATFORM.sendToPlayer(v.player, p);
+            }
+        }
+        int warp = c.warpVersion();
+        if (warp != s.sentCursorWarp) {
+            s.sentCursorWarp = warp;
+            int[] pos = c.warpPosition();
+            S2C.CursorWarp p = new S2C.CursorWarp(s.record.id, pos[0], pos[1]);
+            for (VmSession.Viewer v : s.viewers.values()) {
+                if (!v.player.hasDisconnected() && s.controllers.contains(v.player.getUUID())) Services.PLATFORM.sendToPlayer(v.player, p);
+            }
         }
     }
 

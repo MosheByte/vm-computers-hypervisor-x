@@ -66,7 +66,13 @@ public final class AutoTest {
      * then plays a scripted 30 second scene to screen-record.
      */
     private static final boolean VIDEO = Boolean.getBoolean("hvx.video");
+    /**
+     * -Dhvx.videoworld=<save folder>: films in that existing world instead of a new one, on the machine already
+     * running there. You drive the guest from the hypervisor's own window while the camera does the scene.
+     */
+    private static final String VIDEO_WORLD = System.getProperty("hvx.videoworld", "").trim();
     private static boolean videoPrepped;
+    private static int lookOpenAt = -1000;
     private static int progressShots;
     private static final String CAPTURE_TITLE = "HyperVisor X capture test";
     private static int stage;
@@ -88,7 +94,12 @@ public final class AutoTest {
             switch (stage) {
                 case 0 -> {
                     if (ticks == 1) mc.options.pauseOnLostFocus = false;
-                    if (mc.screen instanceof TitleScreen && ticks > 40) {
+                    if (mc.screen instanceof TitleScreen && ticks > 40 && !VIDEO_WORLD.isEmpty()) {
+                        mc.createWorldOpenFlows().openWorld(VIDEO_WORLD, () -> log("video: could not open world " + VIDEO_WORLD));
+                        stage = 40;
+                        ticks = 0;
+                        log("video: opening " + VIDEO_WORLD);
+                    } else if (mc.screen instanceof TitleScreen && ticks > 40) {
                         GameRules rules = new GameRules();
                         rules.getRule(GameRules.RULE_DAYLIGHT).set(false, null);
                         rules.getRule(GameRules.RULE_WEATHER_CYCLE).set(false, null);
@@ -404,7 +415,45 @@ public final class AutoTest {
                         }
                     }
                 }
-                case 30 -> videoScene(mc);
+                case 30 -> {
+                    if (VIDEO_WORLD.isEmpty()) videoScene(mc);
+                    else videoSceneLive(mc);
+                }
+                case 40 -> {
+                    if (mc.level != null && mc.player != null && mc.getSingleplayerServer() != null && ticks > 100) {
+                        var server = mc.getSingleplayerServer();
+                        UUID self = mc.player.getUUID();
+                        server.execute(() -> {
+                            ServerPlayer sp = server.getPlayerList().getPlayer(self);
+                            VmManager m = VmManager.get();
+                            VmRecord r = m.data().all().stream().filter(v -> v.backend.equals(BACKEND) && v.hostPos != null).findFirst().orElse(null);
+                            if (sp == null || r == null || !(sp.level().getBlockEntity(r.hostPos) instanceof ComputerBlockEntity tower)) {
+                                log("video: no " + BACKEND + " computer in " + VIDEO_WORLD);
+                                return;
+                            }
+                            DemoBuilder.lastTower = r.hostPos;
+                            // parts an earlier take left in the inventory go back in their sockets
+                            var inv = sp.getInventory();
+                            for (int slot = 0; slot < tower.parts().getContainerSize(); slot++) {
+                                if (!tower.parts().getItem(slot).isEmpty()) continue;
+                                for (int i = 0; i < inv.getContainerSize(); i++) {
+                                    net.minecraft.world.item.ItemStack st = inv.getItem(i);
+                                    if (!st.isEmpty() && tower.parts().canPlaceItem(slot, st)) {
+                                        tower.parts().setItem(slot, st.split(1));
+                                        break;
+                                    }
+                                }
+                            }
+                            tower.parts().setChanged();
+                            vmwareVm = r.id;
+                            Component err = m.startUnchecked(r, tower.builtSpec(), tower);
+                            log("video: '" + r.name + "' " + r.id + " start: " + (err == null ? "ok" : err.getString()));
+                        });
+                        stage = 41;
+                        ticks = 0;
+                    }
+                }
+                case 41 -> videoWait(mc);
                 case 12 -> {
                     String p = "hvx-" + BACKEND + "-";
                     if (ticks == 1) shot(mc, p + "world.png");
@@ -498,8 +547,24 @@ public final class AutoTest {
     private static void videoWait(Minecraft mc) {
         var st = ClientVmCache.get(vmwareVm);
         if (ticks % 200 == 0) log("video: vm " + (st == null ? "none" : st.state() + " " + st.width() + "x" + st.height() + " " + Math.round(st.fps()) + " fps"));
+        // hvx-look-check: stand at the screen, use it like a player would (a look, mouse captured), snap a picture
+        if (ticks == lookOpenAt) mc.setScreen(new FocusScreen(vmwareVm, false));
+        if (ticks == lookOpenAt + 100) {
+            shot(mc, "hvx-look.png");
+            log("look check: cursor shape " + (net.hypervisorx.client.GuestCursors.known(vmwareVm) ? "received" : "missing")
+                    + ", shown " + net.hypervisorx.client.GuestCursors.visible(vmwareVm));
+        }
         if (ticks % 10 != 0) return;
         Path dir = mc.gameDirectory.toPath();
+        if (Files.exists(dir.resolve("hvx-look-check"))) {
+            try {
+                Files.deleteIfExists(dir.resolve("hvx-look-check"));
+            } catch (java.io.IOException ignored) {
+            }
+            mc.setScreen(null);
+            standBeforeScreen(mc, vmwareVm);
+            lookOpenAt = ticks + 60;
+        }
         try {
             if (!videoPrepped && Files.deleteIfExists(dir.resolve("hvx-video-prep"))) {
                 videoPrep(mc);
@@ -522,6 +587,7 @@ public final class AutoTest {
         net.hypervisorx.config.HvxClientConfig.get().showFpsOverlay = false;
         FocusScreen.cinematic = true;
         DeskView.fillBoost = 1.6;
+        DeskView.seated = true;
         mc.player.getAbilities().flying = true;
         var server = mc.getSingleplayerServer();
         UUID self = mc.player.getUUID();
@@ -667,6 +733,35 @@ public final class AutoTest {
         }
         if (ticks == 456) mc.setScreen(null);
         glide(mc, V_TOWER, V_WIDE, 460, 598);
+        if (ticks == 600) {
+            log("video: scene finished");
+            stage = 31;
+            ticks = 0;
+        }
+    }
+
+    /** 30 seconds while you play in the guest from VMware's window, the camera just watches. */
+    private static void videoSceneLive(Minecraft mc) {
+        glide(mc, V_START, V_DESK, 0, 50);
+        if (ticks == 52) mc.setScreen(new FocusScreen(vmwareVm, false));
+        if (ticks == 280) mc.setScreen(null);
+        glide(mc, V_DESK, V_TOWER, 286, 312);
+        if (ticks == 314) openPcMenu(mc, DemoBuilder.lastTower);
+        if (mc.screen instanceof net.hypervisorx.client.screen.ComputerScreen cs && cs.board() != null) {
+            var b = cs.board();
+            if (ticks == 322) b.testInstall(0);
+            if (ticks == 340) b.testInstall(1);
+            if (ticks == 350) b.testInstall(2);
+            if (ticks == 362) b.testInstall(5);
+            if (ticks == 376) b.testInstall(6);
+            if (ticks >= 318 && ticks <= 448) {
+                double t = (ticks - 318) / 130.0;
+                t = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+                b.testView((float) (14 - 40 * t), (float) (50 - 8 * t));
+            }
+        }
+        if (ticks == 452) mc.setScreen(null);
+        glide(mc, V_TOWER, V_WIDE, 456, 598);
         if (ticks == 600) {
             log("video: scene finished");
             stage = 31;

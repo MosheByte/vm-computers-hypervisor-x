@@ -50,6 +50,8 @@ public final class FrameStream {
     /** pulls changes from the framebuffer. true if the epoch (resolution) changed. */
     public synchronized boolean commit() {
         boolean reset = false;
+        // frame's still coming in, grab it whole next cycle
+        if (fb.midFrame()) return false;
         synchronized (fb.lock()) {
             int e = fb.drainDirty(dirty);
             if (e != epoch) {

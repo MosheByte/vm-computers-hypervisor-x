@@ -87,6 +87,7 @@ public final class ScreenTextureManager {
                     HyperVisorX.LOG.debug("Dropped corrupt tile: {}", ex.getMessage());
                 }
             }
+            if (p.end()) e.texture.endFrame();
         });
     }
 

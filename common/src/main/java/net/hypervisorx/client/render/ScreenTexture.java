@@ -26,11 +26,11 @@ import java.util.BitSet;
 /**
  * GPU texture for one VM display.
  * <p>
- * Decoder threads write tiles into an off-heap RGBA staging image and flag 64x64 dirty tiles.
- * Once per frame the render thread merges dirty tiles into horizontal runs, streams them through
- * an orphaned pixel-buffer object (asynchronous DMA, no pipeline stall) with
- * {@code glTexSubImage2D}, and regenerates mipmaps at most 30 times a second. Unchanged pixels are
- * never touched, so a static desktop costs nothing per frame.
+ * Decoder threads write tiles into an off-heap RGBA staging image and flag dirty 64x64 tiles.
+ * Once a frame the render thread merges dirty tiles into horizontal runs, pushes them through an
+ * orphaned pixel buffer object (async DMA, no pipeline stall) with {@code glTexSubImage2D}, then
+ * redoes the mipmaps right away (capped at roughly 120 times a second). Pixels that didn't change
+ * never get touched, so a static desktop costs nothing per frame.
  */
 public final class ScreenTexture extends AbstractTexture {
     /** Reused across uploads, one int triple per dirty run. */
@@ -47,6 +47,8 @@ public final class ScreenTexture extends AbstractTexture {
     private int tilesX;
     private int tilesY;
     private final BitSet dirty = new BitSet();
+    /** Tiles of the frame that's still coming in (see {@link #endFrame()}). */
+    private final BitSet frameTiles = new BitSet();
     private boolean needsAllocation;
     private int allocatedW;
     private int allocatedH;
@@ -118,6 +120,7 @@ public final class ScreenTexture extends AbstractTexture {
             }
             for (int i = 0; i < w * h; i++) stagingInts.put(i, 0xFF000000);
             epoch = newEpoch;
+            frameTiles.clear();
             dirty.set(0, tilesX * tilesY);
             hasContent = false;
         }
@@ -131,8 +134,17 @@ public final class ScreenTexture extends AbstractTexture {
             TileCodec.apply(tile, unpacked, sink, width);
             int tx = tile.x() / TILE;
             int ty = tile.y() / TILE;
-            dirty.set(ty * tilesX + tx);
+            // goes up with the rest of its frame, so you never see a half-old, half-new picture
+            frameTiles.set(ty * tilesX + tx);
             hasContent = true;
+        }
+    }
+
+    /** Last tile of a frame is in, so the whole frame shows up at once. */
+    public void endFrame() {
+        synchronized (lock) {
+            dirty.or(frameTiles);
+            frameTiles.clear();
         }
     }
 
@@ -277,7 +289,8 @@ public final class ScreenTexture extends AbstractTexture {
         if (!mipmapped) return;
         if (changed) mipmapPending = true;
         long now = System.nanoTime();
-        if (mipmapPending && now - lastMipmap > 33_000_000L) {
+        // do it right after the picture changes, smaller levels lagging behind the full one flicker in motion
+        if (mipmapPending && now - lastMipmap > 8_000_000L) {
             GlStateManager._bindTexture(getId());
             GL30.glGenerateMipmap(GL11.GL_TEXTURE_2D);
             lastMipmap = now;

@@ -2,6 +2,7 @@ package net.hypervisorx.client.screen;
 
 import net.hypervisorx.client.ClientVmCache;
 import net.hypervisorx.client.DeskView;
+import net.hypervisorx.client.GuestCursors;
 import net.hypervisorx.client.ScreenHits;
 import net.hypervisorx.client.HvxKeys;
 import net.hypervisorx.client.ScreenTracker;
@@ -22,11 +23,12 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Using a computer. By default the player stays in the world: the camera settles in front of the
- * screen that was clicked ({@link DeskView}) and the mouse is cast onto that in-world screen, so
- * the room stays visible around the monitor. The toolbar switches to the classic full-window view.
- * Either way the VM receives every key (including Escape and Tab) and absolute mouse input; the
- * release key (Right Ctrl by default) gives control back to Minecraft.
+ * The "using a computer" screen. By default you stay in the world and just look at the screen you clicked
+ * ({@link DeskView}), with the room still around it. Ctrl+Alt+Enter (or the toolbar) flips to the
+ * full-window picture and back. Mouse gets captured like in a real hypervisor window: it drives the guest
+ * pointer and can't wander off the screen, Ctrl+Alt frees it (and grabs it again), and the guest's own
+ * cursor is drawn on top. The VM gets every key, Escape and Tab too. The release key (Right Ctrl by
+ * default) hands control back to Minecraft.
  */
 public class FocusScreen extends Screen {
     private final UUID vm;
@@ -54,6 +56,18 @@ public class FocusScreen extends Screen {
     private boolean world;
     private boolean decided;
     private long worldSince;
+    /** mouse captured: host cursor's locked and drives the guest pointer ({@link #vx}, {@link #vy}) */
+    private boolean captured;
+    private boolean autoCaptured;
+    private double vx = -1;
+    private double vy = -1;
+    private double lastMx = Double.NaN;
+    private double lastMy;
+    /** Ctrl+Alt is down. let go on its own = toggle capture, with Enter = toggle the full-window view */
+    private boolean chord;
+    private boolean chordUsed;
+    private Component hint;
+    private long hintUntil;
 
     public FocusScreen(UUID vm, boolean laptop) {
         super(Component.translatable("hypervisorx.focus.title"));
@@ -72,6 +86,7 @@ public class FocusScreen extends Screen {
             decided = true;
             world = HvxClientConfig.get().focusInWorld && DeskView.enter(vm);
             worldSince = System.currentTimeMillis();
+            showHint(Component.translatable("hypervisorx.focus.keys_hint", HvxKeys.RELEASE.getTranslatedKeyMessage()), 7000);
         }
         // floating toolbar pill up top: power, stop, reset, Ctrl+Alt+Del, snapshot, release
         UiKit.FlatButton power = new UiKit.FlatButton(0, 0, 22, 16, Component.empty(), () -> action(running()
@@ -82,8 +97,8 @@ public class FocusScreen extends Screen {
         addBar(UiKit.Icon.RESET, Component.translatable("hypervisorx.focus.reset"), () -> action(C2S.HostAction.RESET), UiKit.WARN);
         addBar(UiKit.Icon.KEYBOARD, Component.literal("Ctrl+Alt+Del"), () -> action(C2S.HostAction.CTRL_ALT_DEL), UiKit.ACCENT_2);
         addBar(UiKit.Icon.CAMERA, Component.translatable("hypervisorx.focus.snapshot"), () -> action(C2S.HostAction.SNAPSHOT), UiKit.ACCENT);
-        addBar(world ? UiKit.Icon.FOCUS : UiKit.Icon.EYE, Component.translatable(world ? "hypervisorx.focus.view_full" : "hypervisorx.focus.view_world"),
-                this::toggleView, UiKit.ACCENT_2);
+        addBar(world ? UiKit.Icon.FOCUS : UiKit.Icon.EYE, Component.translatable(world ? "hypervisorx.focus.view_full" : "hypervisorx.focus.view_world")
+                .append(" (Ctrl+Alt+Enter)"), this::toggleView, UiKit.ACCENT_2);
         Component release = Component.translatable(world ? "hypervisorx.focus.stand_up" : "hypervisorx.focus.release", HvxKeys.RELEASE.getTranslatedKeyMessage());
         // sized to its label so "Release (Right Control)" never gets clipped (only capped at half the window)
         int rw = Math.min(width / 2, font.width(release) + 30);
@@ -156,6 +171,7 @@ public class FocusScreen extends Screen {
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         if (!minecraft.isWindowActive() && (!heldKeys.isEmpty() || buttons != 0)) releaseAll();
+        if (!minecraft.isWindowActive() && captured) capture(false);
         renderBackground(g, mouseX, mouseY, partialTick);
         ScreenTracker.markVisible(vm, null);
         ScreenTextureManager.uploadAll();
@@ -174,7 +190,6 @@ public class FocusScreen extends Screen {
                 return;
             }
             if (!(tex != null && tex.hasContent() && running())) statePanel(g, status, height - 70 - 28);
-            else if (!cinematic && System.currentTimeMillis() - worldSince < 5000) seatedHint(g);
         } else if (tex != null && tex.hasContent() && running()) {
             float aspect = tex.width() / (float) tex.height();
             float w = width;
@@ -194,15 +209,54 @@ public class FocusScreen extends Screen {
             rectX0 = rectX1 = rectY0 = rectY1 = 0;
             statePanel(g, status, (height - 70) / 2);
         }
+        boolean live = tex != null && tex.hasContent() && running();
+        // guest gets the mouse as soon as its picture is up (Ctrl+Alt gives it back)
+        if (live && !autoCaptured && minecraft.isWindowActive()) {
+            autoCaptured = true;
+            // no hint here, the key hint shown on open already says how to get the mouse back
+            capture(true, false);
+        }
+        if (live) drawGuestCursor(g, mouseX, mouseY);
+        if (!cinematic) hintPill(g);
         renderToolbar(g, status, mouseX, mouseY, partialTick);
     }
 
-    /** Small pill at the bottom while settling in: how to get up again. */
-    private void seatedHint(GuiGraphics g) {
-        float a = Mth.clamp((5000 - (System.currentTimeMillis() - worldSince)) / 600f, 0f, 1f);
+    /** draws the guest's own cursor at its pointer (guests running their drivers don't paint it into the picture) */
+    private void drawGuestCursor(GuiGraphics g, int mouseX, int mouseY) {
+        if (!captured && !(GuestCursors.known(vm) && insideVm(mouseX, mouseY))) return;
+        if (!GuestCursors.known(vm) && !captured) return;
+        int[] size = guestSize();
+        double gx = captured ? vx : lastVmX;
+        double gy = captured ? vy : lastVmY;
+        if (gx < 0 || gy < 0) return;
+        if (world) {
+            float[] p = DeskView.project(vm, (gx + 0.5) / size[0], (gy + 0.5) / size[1], 1.0 / size[0], width, height);
+            if (p != null) GuestCursors.draw(g, vm, p[0], p[1], p[2]);
+        } else if (rectX1 > rectX0) {
+            float k = (rectX1 - rectX0) / size[0];
+            GuestCursors.draw(g, vm, rectX0 + (float) gx * k, rectY0 + (float) gy * k, k);
+        }
+    }
+
+    private int[] guestSize() {
+        S2C.VmStatus s = ClientVmCache.get(vm);
+        ScreenTexture tex = ScreenTextureManager.get(vm);
+        int w = tex != null ? tex.width() : s != null ? s.width() : 1;
+        int h = tex != null ? tex.height() : s != null ? s.height() : 1;
+        return new int[]{Math.max(1, w), Math.max(1, h)};
+    }
+
+    private void showHint(Component text, long millis) {
+        hint = text;
+        hintUntil = System.currentTimeMillis() + millis;
+    }
+
+    /** Small pill at the bottom: the keys of this screen, and what Ctrl+Alt just did. */
+    private void hintPill(GuiGraphics g) {
+        if (hint == null) return;
+        float a = Mth.clamp((hintUntil - System.currentTimeMillis()) / 600f, 0f, 1f);
         int alpha = (int) (0xD9 * a);
         if (alpha < 8) return;
-        Component hint = Component.translatable("hypervisorx.focus.seated_hint", HvxKeys.RELEASE.getTranslatedKeyMessage());
         int w = Math.min(width - 20, font.width(hint) + 20);
         int x = (width - w) / 2;
         int y = height - 26;
@@ -274,7 +328,7 @@ public class FocusScreen extends Screen {
         UiKit.renderOverlays(g, font, mouseX, mouseY);
         // one pointer on screen, not two: over a guest that draws its own cursor, hide Minecraft's
         boolean overBar = slide > 0.5f && mouseX >= pillX && mouseX < pillX + pillW && mouseY >= pillY() && mouseY < pillY() + PILL_H;
-        setCursorHidden(insideVm(mouseX, mouseY) && !overBar && guestDrawsCursor(status) && minecraft.isWindowActive());
+        setCursorHidden(insideVm(mouseX, mouseY) && !overBar && (GuestCursors.known(vm) || guestDrawsCursor(status)) && minecraft.isWindowActive());
     }
 
     /** VNC guests (VMware, QEMU) bake their cursor into the picture. window capture and the MicroVM don't */
@@ -285,13 +339,14 @@ public class FocusScreen extends Screen {
     }
 
     private void setCursorHidden(boolean hide) {
-        if (hide == cursorHidden) return;
+        if (captured || hide == cursorHidden) return;
         cursorHidden = hide;
         GLFW.glfwSetInputMode(minecraft.getWindow().getWindow(), GLFW.GLFW_CURSOR, hide ? GLFW.GLFW_CURSOR_HIDDEN : GLFW.GLFW_CURSOR_NORMAL);
     }
 
     @Override
     public void removed() {
+        capture(false);
         setCursorHidden(false);
         if (world) DeskView.exit();
         super.removed();
@@ -344,18 +399,100 @@ public class FocusScreen extends Screen {
         };
     }
 
+    /**
+     * locks the host cursor (then it reports endless relative motion) and drives the guest pointer with it,
+     * or frees it again. starts from where the guest pointer last was, or from under the mouse.
+     */
+    private void capture(boolean on) {
+        capture(on, true);
+    }
+
+    private void capture(boolean on, boolean announce) {
+        if (on == captured || minecraft == null) return;
+        long window = minecraft.getWindow().getWindow();
+        if (on) {
+            int[] size = guestSize();
+            double mx = minecraft.mouseHandler.xpos() * width / minecraft.getWindow().getScreenWidth();
+            double my = minecraft.mouseHandler.ypos() * height / minecraft.getWindow().getScreenHeight();
+            if (insideVm(mx, my)) {
+                int[] p = toVm(mx, my);
+                vx = p[0];
+                vy = p[1];
+            } else if (vx < 0 || vy < 0) {
+                vx = lastVmX >= 0 ? lastVmX : size[0] / 2.0;
+                vy = lastVmY >= 0 ? lastVmY : size[1] / 2.0;
+            }
+            setCursorHidden(false);
+            captured = true;
+            lastMx = Double.NaN;
+            GLFW.glfwSetInputMode(window, GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_DISABLED);
+            if (GLFW.glfwRawMouseMotionSupported()) GLFW.glfwSetInputMode(window, GLFW.GLFW_RAW_MOUSE_MOTION, GLFW.GLFW_TRUE);
+            sendVirtual(true);
+            if (announce) showHint(Component.translatable("hypervisorx.focus.captured"), 3500);
+        } else {
+            captured = false;
+            GLFW.glfwSetInputMode(window, GLFW.GLFW_RAW_MOUSE_MOTION, GLFW.GLFW_FALSE);
+            GLFW.glfwSetInputMode(window, GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_NORMAL);
+            cursorHidden = false;
+            if (buttons != 0) {
+                buttons = 0;
+                sendVirtual(true);
+            }
+            if (announce) showHint(Component.translatable("hypervisorx.focus.released_mouse"), 3500);
+        }
+    }
+
+    /** guest moved its own cursor (games keep it centred), so the captured pointer picks up from there */
+    public void onWarp(int x, int y) {
+        if (!captured) return;
+        vx = x;
+        vy = y;
+    }
+
+    private void sendVirtual(boolean force) {
+        long now = System.nanoTime();
+        int x = (int) vx;
+        int y = (int) vy;
+        if (!force && (now - lastPointer < 8_000_000L || (x == lastVmX && y == lastVmY))) return;
+        lastPointer = now;
+        lastVmX = x;
+        lastVmY = y;
+        Services.PLATFORM.sendToServer(new C2S.Input(vm, C2S.Input.POINTER, x, y, buttons, 0));
+    }
+
     @Override
     public void mouseMoved(double mx, double my) {
         mouseY = my;
-        sendPointer(mx, my, false);
+        if (!captured) {
+            sendPointer(mx, my, false);
+            return;
+        }
+        if (Double.isNaN(lastMx)) {
+            lastMx = mx;
+            lastMy = my;
+            return;
+        }
+        // one window width of mouse travel = the whole guest screen
+        int[] size = guestSize();
+        double k = size[0] / (double) Math.max(1, width);
+        vx = Mth.clamp(vx + (mx - lastMx) * k, 0, size[0] - 1);
+        vy = Mth.clamp(vy + (my - lastMy) * k, 0, size[1] - 1);
+        lastMx = mx;
+        lastMy = my;
+        sendVirtual(false);
     }
 
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
+        if (captured) {
+            buttons |= rfbBit(button);
+            sendVirtual(true);
+            return true;
+        }
         if (slide > 0.5f && mx >= pillX && mx < pillX + pillW && my >= pillY() && my < pillY() + PILL_H) return super.mouseClicked(mx, my, button);
         if (!insideVm(mx, my)) return super.mouseClicked(mx, my, button);
-        buttons |= rfbBit(button);
-        sendPointer(mx, my, true);
+        // clicking the picture hands the mouse to the guest, same as a hypervisor window
+        capture(true);
         return true;
     }
 
@@ -363,27 +500,35 @@ public class FocusScreen extends Screen {
     public boolean mouseReleased(double mx, double my, int button) {
         if ((buttons & rfbBit(button)) == 0) return super.mouseReleased(mx, my, button);
         buttons &= ~rfbBit(button);
-        sendPointer(mx, my, true);
+        if (captured) sendVirtual(true);
+        else sendPointer(mx, my, true);
         return true;
     }
 
     @Override
     public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
-        mouseY = my;
-        sendPointer(mx, my, false);
+        // moves come in through mouseMoved anyway
         return true;
     }
 
     @Override
     public boolean mouseScrolled(double mx, double my, double scrollX, double scrollY) {
-        if (!insideVm(mx, my) || scrollY == 0) return false;
+        if (scrollY == 0 || !captured && !insideVm(mx, my)) return false;
         // touchpads spam tiny fractional deltas, so only whole notches go to the guest (5 per event max)
         int steps = wheel.add(scrollY);
-        int[] p = toVm(mx, my);
+        int[] p = captured ? new int[]{(int) vx, (int) vy} : toVm(mx, my);
         for (int i = 0; i < Math.min(5, Math.abs(steps)); i++) {
             Services.PLATFORM.sendToServer(new C2S.Input(vm, C2S.Input.WHEEL, p[0], p[1], buttons, steps > 0 ? 1 : -1));
         }
         return true;
+    }
+
+    private static boolean isCtrl(int key) {
+        return key == GLFW.GLFW_KEY_LEFT_CONTROL || key == GLFW.GLFW_KEY_RIGHT_CONTROL;
+    }
+
+    private static boolean isAlt(int key) {
+        return key == GLFW.GLFW_KEY_LEFT_ALT || key == GLFW.GLFW_KEY_RIGHT_ALT;
     }
 
     @Override
@@ -393,6 +538,17 @@ public class FocusScreen extends Screen {
             return true;
         }
         if (key == GLFW.GLFW_KEY_UNKNOWN) return true;
+        if (isAlt(key) && (modifiers & GLFW.GLFW_MOD_CONTROL) != 0 || isCtrl(key) && (modifiers & GLFW.GLFW_MOD_ALT) != 0) {
+            // the second key of Ctrl+Alt is ours, the guest never sees it
+            chord = true;
+            chordUsed = false;
+            return true;
+        }
+        if (chord && (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER)) {
+            chordUsed = true;
+            toggleView();
+            return true;
+        }
         heldKeys.add(key);
         Services.PLATFORM.sendToServer(new C2S.Input(vm, C2S.Input.KEY, key, 1, 0, 0));
         return true;
@@ -400,6 +556,10 @@ public class FocusScreen extends Screen {
 
     @Override
     public boolean keyReleased(int key, int scancode, int modifiers) {
+        if (chord && (isCtrl(key) || isAlt(key))) {
+            chord = false;
+            if (!chordUsed) capture(!captured);
+        }
         if (heldKeys.remove(key)) Services.PLATFORM.sendToServer(new C2S.Input(vm, C2S.Input.KEY, key, 0, 0, 0));
         return true;
     }
