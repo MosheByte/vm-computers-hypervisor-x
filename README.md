@@ -109,8 +109,9 @@ image switches the feature off per computer. Linux distributions bring their own
   shows and controls that machine (configurable range).
 
 ### Using a computer
-Right-click a screen or press **V** while looking at it. You stay where you are and just look at it:
-the camera turns to the monitor with a slight zoom and the whole room stays in view. The mouse is
+Right-click a screen or press **V** while looking at it. The camera turns to the monitor and leans in a
+little, the whole room stays in view, and the wheel leans further in or back (your choice is kept).
+A small caption in the bottom corner always says how to free the mouse. The mouse is
 captured like in a hypervisor's own window: it moves the guest's pointer on the in-world screen
 (flat, curved, spanned and video-wall screens alike) and cannot slide off it, and the guest's own
 cursor is drawn on the picture. The VM gets *every* key including Esc and Tab.
@@ -118,6 +119,7 @@ cursor is drawn on the picture. The VM gets *every* key including Esc and Tab.
 | Keys | |
 |---|---|
 | **Ctrl+Alt** | free the mouse / capture it again (clicking the screen captures it too) |
+| **Mouse wheel** (mouse free) or **Ctrl+Alt+wheel** | lean in / back: from where you stand to right in front of the screen |
 | **Ctrl+Alt+Enter** | full-window picture and back |
 | **Right Ctrl** (rebindable) | leave the computer |
 

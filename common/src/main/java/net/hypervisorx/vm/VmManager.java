@@ -558,9 +558,23 @@ public final class VmManager {
             case C2S.Input.TEXT -> {
                 if (Character.isValidCodePoint(in.a())) inst.text(in.a());
             }
-            case C2S.Input.POINTER -> inst.pointer(clamp(in.a(), fb.width() - 1), clamp(in.b(), fb.height() - 1), in.c() & 7);
+            case C2S.Input.POINTER -> {
+                int x = clamp(in.a(), fb.width() - 1);
+                int y = clamp(in.b(), fb.height() - 1);
+                s.pointerAt(x, y);
+                inst.pointer(x, y, in.c() & 7);
+            }
             case C2S.Input.WHEEL -> inst.wheel(clamp(in.a(), fb.width() - 1), clamp(in.b(), fb.height() - 1), in.c() & 7, Math.max(-10, Math.min(10, in.d())));
             case C2S.Input.CTRL_ALT_DEL -> inst.ctrlAltDelete();
+            // captured mouse: motion in guest pixels, applied where the guest pointer actually is
+            case C2S.Input.POINTER_REL -> {
+                int[] p = s.movePointer(inst, Math.max(-2000, Math.min(2000, in.a())), Math.max(-2000, Math.min(2000, in.b())));
+                inst.pointer(p[0], p[1], in.c() & 7);
+            }
+            case C2S.Input.WHEEL_REL -> {
+                int[] p = s.movePointer(inst, 0, 0);
+                inst.wheel(p[0], p[1], in.c() & 7, Math.max(-10, Math.min(10, in.d())));
+            }
             default -> {
             }
         }

@@ -14,34 +14,38 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * The in-world view of a screen in use. Normally it is just a look: the camera stays at the player's
- * eyes, turns to the screen and zooms in slightly (by {@code GameRendererMixin}), so the whole room stays
- * in view around the monitor. For recordings ({@link #seated}) the camera glides in front of the screen
- * (by {@code CameraMixin}) until the picture fills about two thirds of the view. Leaving turns back.
+ * In-world view of a screen you're using: the camera turns to the screen and leans in, like stepping
+ * up to a monitor, and the room stays in view (done in {@code CameraMixin}). How far it leans is the
+ * zoom: 0 = from where the player stands, 1 = right in front so the picture fills most of the view.
+ * It eases, the mouse wheel changes it and the last pick sticks. FOV stays natural (no telephoto look).
+ * Leaving turns you back.
  */
 public final class DeskView {
     private static final float ENTER_SECONDS = 0.5f;
     private static final float EXIT_SECONDS = 0.35f;
-    /** Share of the view height / width the picture should fill once seated. */
-    private static final double FILL_H = 0.55;
-    private static final double FILL_W = 0.72;
-    /** The camera leans in at most this far from the eyes (blocks). */
-    private static final double MAX_TRAVEL = 1.5;
-    private static final double MIN_FOV = 36;
+    /** How much of the view height / width the picture fills at full zoom. */
+    private static final double FILL_H = 0.78;
+    private static final double FILL_W = 0.9;
+    /** Seconds the zoom takes to settle after a change (exponential approach). */
+    private static final double ZOOM_SETTLE = 0.12;
     /** For recordings: the picture fills this much more of the view than in normal play. */
     public static double fillBoost = 1.0;
-    /** Recordings: glide in front of the screen and fill the view, instead of looking at it from where the player stands. */
+    /** For recordings: start at full zoom, not whatever the player picked. */
     public static boolean seated;
-    /** A look zooms in at most this much (field of view scale). */
-    private static final double LOOK_ZOOM = 0.85;
 
     private static boolean active;
     private static UUID vm;
     private static BlockPos anchor;
-    private static Vec3 seat = Vec3.ZERO;
     private static Vec3 lookAt = Vec3.ZERO;
-    private static float yaw;
-    private static float pitch;
+    /** Where the camera ends up at full zoom: straight in front of the picture. */
+    private static Vec3 closeSeat = Vec3.ZERO;
+    private static double zoom;
+    private static double zoomTarget;
+    /** Last zoom the player picked, reused next time they use a screen. */
+    private static double preferredZoom = 0.3;
+    private static long zoomChangedAt;
+    private static float yawNow;
+    private static float pitchNow;
     private static double fovScale = 1;
     private static float blend;
     private static long lastNanos;
@@ -138,26 +142,22 @@ public final class DeskView {
         }
         double aspect = mc.getWindow().getWidth() / (double) Math.max(1, mc.getWindow().getHeight());
         double tan = Math.tan(Math.toRadians(baseFov) / 2);
-        // where a seated player's eyes would be: straight in front of the picture
-        double want = Math.max(0.5, Math.max(halfH / (FILL_H * fillBoost * tan), halfW / (FILL_W * fillBoost * tan * aspect)));
-        Vec3 target = eye;
-        if (seated) {
-            target = center.add(normal.scale(want));
-            Vec3 move = target.subtract(eye);
-            if (move.length() > MAX_TRAVEL) target = eye.add(move.scale(MAX_TRAVEL / move.length()));
-            BlockHitResult clip = mc.level.clip(new ClipContext(eye, target, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mc.player));
-            if (clip.getType() != HitResult.Type.MISS) target = eye.add(clip.getLocation().subtract(eye).scale(0.75));
+        // full zoom: dead in front of the picture, just close enough to fill most of the view
+        double fillH = Math.min(0.92, FILL_H * fillBoost);
+        double fillW = Math.min(0.97, FILL_W * fillBoost);
+        double close = Math.max(0.35, Math.max(halfH / (fillH * tan), halfW / (fillW * tan * aspect)));
+        Vec3 seat = center.add(normal.scale(close));
+        // don't go through walls or the desk, stop short of whatever's in the way
+        BlockHitResult clip = mc.level.clip(new ClipContext(eye, seat, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mc.player));
+        if (clip.getType() != HitResult.Type.MISS && !clip.getBlockPos().equals(best.pos())) {
+            seat = eye.add(clip.getLocation().subtract(eye).scale(0.85));
         }
-        Vec3 to = center.subtract(target);
-        double dist = Math.max(0.2, seated ? -to.dot(normal) : to.length());
-        double needTan = Math.max(halfH / (FILL_H * fillBoost * dist), halfW / (FILL_W * fillBoost * dist * aspect));
-        double fov = Math.toDegrees(2 * Math.atan(needTan));
-        // a look only narrows the view a little; recordings zoom until the picture fills it
-        fovScale = Mth.clamp(fov / baseFov, seated ? MIN_FOV / baseFov : LOOK_ZOOM, 1.0);
-        seat = target;
+        closeSeat = seat;
         lookAt = center;
-        yaw = (float) (Mth.atan2(to.z, to.x) * Mth.RAD_TO_DEG) - 90f;
-        pitch = (float) -(Mth.atan2(to.y, Math.sqrt(to.x * to.x + to.z * to.z)) * Mth.RAD_TO_DEG);
+        if (!active) {
+            zoomTarget = seated ? 1.0 : preferredZoom;
+            zoom = zoomTarget;
+        }
         vm = best.vm();
         anchor = best.pos();
         if (!active) {
@@ -199,11 +199,31 @@ public final class DeskView {
         anchor = null;
     }
 
+    /** Lean in (positive) or back. A whole wheel notch is about a tenth of the way. */
+    public static void zoomBy(double delta) {
+        if (!active) return;
+        zoomTarget = Mth.clamp(zoomTarget + delta, 0.0, 1.0);
+        if (!seated) preferredZoom = zoomTarget;
+        zoomChangedAt = System.currentTimeMillis();
+    }
+
+    /** Zoom we're heading to (0 = where the player stands, 1 = right in front). */
+    public static double zoomTarget() {
+        return zoomTarget;
+    }
+
+    public static long zoomChangedAt() {
+        return zoomChangedAt;
+    }
+
     /** Steps the glide, the camera calls this once a frame. Returns the eased blend (0 = eyes, 1 = seated). */
     public static float frame() {
         long now = System.nanoTime();
         float dt = lastNanos == 0 ? 0f : Math.min(0.1f, (now - lastNanos) / 1e9f);
         lastNanos = now;
+        zoom += (zoomTarget - zoom) * (1 - Math.exp(-dt / ZOOM_SETTLE));
+        // just a touch of narrowing at full zoom, the lean does the actual zooming
+        fovScale = 1 - 0.06 * ease(zoom);
         blend = Mth.clamp(blend + (active ? dt / ENTER_SECONDS : -dt / EXIT_SECONDS), 0f, 1f);
         if (blend == 0f && !active) {
             vm = null;
@@ -217,16 +237,25 @@ public final class DeskView {
         return t < 0.5f ? 4 * t * t * t : 1 - (float) Math.pow(-2 * t + 2, 3) / 2;
     }
 
+    private static double ease(double t) {
+        return t * t * (3 - 2 * t);
+    }
+
+    /** Camera position for this frame, also aims it at the picture from there. Call before {@link #yaw}. */
     public static Vec3 position(Vec3 eyes, float k) {
+        Vec3 seat = eyes.lerp(closeSeat, ease(zoom));
+        Vec3 to = lookAt.subtract(seat);
+        yawNow = (float) (Mth.atan2(to.z, to.x) * Mth.RAD_TO_DEG) - 90f;
+        pitchNow = (float) -(Mth.atan2(to.y, Math.sqrt(to.x * to.x + to.z * to.z)) * Mth.RAD_TO_DEG);
         return eyes.lerp(seat, k);
     }
 
     public static float yaw(float eyes, float k) {
-        return eyes + Mth.wrapDegrees(yaw - eyes) * k;
+        return eyes + Mth.wrapDegrees(yawNow - eyes) * k;
     }
 
     public static float pitch(float eyes, float k) {
-        return Mth.lerp(k, eyes, pitch);
+        return Mth.lerp(k, eyes, pitchNow);
     }
 
     /** Applied to the world FOV only, never the hand. */

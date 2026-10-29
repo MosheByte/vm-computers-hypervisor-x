@@ -311,7 +311,10 @@ public final class RfbClient implements AutoCloseable {
                 case ENC_CURSOR -> readRichCursor(x, y, w, h);
                 case ENC_VMW_CURSOR -> readVmwareCursor(x, y, w, h);
                 case ENC_VMW_CURSOR_STATE -> cursor.setVisible((in.readUnsignedShort() & 1) != 0);
-                case ENC_VMW_CURSOR_POSITION -> cursor.warp(x, y);
+                case ENC_VMW_CURSOR_POSITION -> {
+                    // only warp when the guest moved the cursor itself, an echo of our own motion would yank it back
+                    if (!recentlySent(x, y)) cursor.warp(x, y);
+                }
                 case ENC_QEMU_EXT_KEY -> extKeySupported = true;
                 case ENC_QEMU_AUDIO -> {
                     audioSupported = true;
@@ -479,9 +482,21 @@ public final class RfbClient implements AutoCloseable {
         }
     }
 
+    /** Last positions we sent, so we can tell the guest's own cursor moves apart from echoes of ours. */
+    private final long[] sentPositions = new long[32];
+    private int sentIndex;
+
+    private synchronized boolean recentlySent(int x, int y) {
+        long key = (long) x << 32 | (y & 0xFFFFFFFFL);
+        for (long p : sentPositions) if (p == key) return true;
+        return false;
+    }
+
     public void sendPointer(int x, int y, int buttonMask) {
         if (!running) return;
         synchronized (this) {
+            sentPositions[sentIndex] = (long) Math.max(0, x) << 32 | (Math.max(0, y) & 0xFFFFFFFFL);
+            sentIndex = (sentIndex + 1) % sentPositions.length;
             try {
                 out.writeByte(5);
                 out.writeByte(buttonMask & 0xFF);

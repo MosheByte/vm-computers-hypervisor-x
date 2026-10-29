@@ -554,6 +554,8 @@ public final class AutoTest {
             log("look check: cursor shape " + (net.hypervisorx.client.GuestCursors.known(vmwareVm) ? "received" : "missing")
                     + ", shown " + net.hypervisorx.client.GuestCursors.visible(vmwareVm));
         }
+        if (ticks == lookOpenAt + 110) net.hypervisorx.client.DeskView.zoomBy(1.0);
+        if (ticks == lookOpenAt + 150) shot(mc, "hvx-look-zoom.png");
         if (ticks % 10 != 0) return;
         Path dir = mc.gameDirectory.toPath();
         if (Files.exists(dir.resolve("hvx-look-check"))) {
